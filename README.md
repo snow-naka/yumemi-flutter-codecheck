@@ -25,7 +25,7 @@ Material Design準拠という方針は維持する。現在のFlutter 3.50.0で
 
 起動手順・診断結果・未確認事項は[開発環境と検証記録](docs/environment.md)、AI利用の経緯は[AI利用記録](docs/ai-notes.md)を参照する。Issue #1で扱う環境構築の機能面の完了条件は満たしている。WSLからのAndroidビルド・エミュレーター認識・Debug起動・Hot Reload・Hot Restartに成功し、静的解析は問題なし、全テスト1件が成功した。
 
-今回不要な追加SDK向け7種類の未同意ライセンスとWindows版Dartの制約は、検証済みのWSL開発経路を妨げない既知の制約として記録する。Phase 0の基礎確認として、Riverpodの`watch`・`read`・Providerの差し替え、テスト内での状態分離と非同期失敗の扱いを小さなテストで確認した。結果と動き方は[Riverpod導入と基礎確認](docs/riverpod-basics.md)を参照する。今回の範囲はIssue #3の段階1までで、検索・詳細のスケルトンとCIは未実装。
+今回不要な追加SDK向け7種類の未同意ライセンスとWindows版Dartの制約は、検証済みのWSL開発経路を妨げない既知の制約として記録する。Phase 0の基礎確認として、Riverpodの`watch`・`read`・Providerの差し替え、テスト内での状態分離と非同期失敗の扱いを小さなテストで確認した。結果と動き方は[Riverpod導入と基礎確認](docs/riverpod-basics.md)を参照する。Issue #3の段階1を完了し、段階2でデータ型・取得窓口・Fakeを実装した。[Fake Gatewayの検証記録](docs/fake-gateway.md)を参照する。検索状態・検索画面・詳細画面とCIは未実装。
 
 ## 設計方針（2026-11-18採用・未実装）
 

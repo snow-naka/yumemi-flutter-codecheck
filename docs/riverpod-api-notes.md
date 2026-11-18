@@ -285,7 +285,7 @@ HTTP状態を確認する前に成功用JSONとして解析しない。外部の
 
 ## 9. アプリ内の取得窓口
 
-採用した取得窓口の契約。型の本体や例外クラスはまだ実装していない。
+採用した取得窓口の契約。段階2でデータ型・例外・Fakeを実装した。ApiFailureは現段階の2分類・説明・任意のHTTPステータスに限定し、HTTP変換とレート制限・待機情報はPhase 2で拡張する。[Fake Gatewayの検証記録](fake-gateway.md)を参照する。
 
 ```dart
 abstract interface class GitHubRepositoryGateway {
