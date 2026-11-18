@@ -1,6 +1,6 @@
 # 段階2：データ型とFake Gateway
 
-2026-11-18、Issue #3。画面・検索Controller・検索状態・詳細Providerはまだ実装していない。本書は取得窓口とFakeの検証記録。
+2026-11-18、Issue #3。本書は段階2時点の取得窓口とFakeの検証記録。後続の検索画面・Controller・状態は[段階3の記録](search-skeleton.md)を参照する。詳細Providerは未実装。
 
 ## 構成と責務
 

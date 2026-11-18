@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'features/search/search_screen.dart';
+
 void main() {
   runApp(
     ProviderScope(
@@ -19,10 +21,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Repository Search',
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
-      home: Scaffold(
-        appBar: AppBar(title: const Text('Repository Search')),
-        body: const SizedBox.shrink(),
-      ),
+      home: const SearchScreen(),
     );
   }
 }
