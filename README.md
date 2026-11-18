@@ -17,11 +17,13 @@
 
 ## 現在の段階（2026-11-18）
 
-別フォルダの初期サンプルでプロジェクト作成と、ユーザーによるシミュレーターの動作確認まで実施。検索・詳細の機能実装は未着手。現在の作業先は`yumemi-flutter-codecheck`で、このリポジトリには開発資料と管理用ファイルのみを置き、Flutterのコード・設定・テストはまだ取り込んでいない。そのため、このリポジトリ単体ではアプリを起動できない。環境診断・解析・テストの実行結果はこの記録では確認しておらず、段階0全体を完了扱いにはしない。
+作業ブランチは`feature/1-setup-flutter`。別フォルダの初期サンプルから、カウンターアプリ・テスト・Android/iOS設定を選択して取り込んだ。元のREADME・資料・Git管理情報・生成物・ローカル設定は取り込んでいない。検索・詳細・Riverpodの実装は未着手。
 
-Windows環境で自主課題として取り組む。Windows向けデスクトップアプリを対象にするという意味ではなく、実行対象は既存環境の確認時に記録する。UIはFlutter標準のMaterialを使う。別フォルダの初期サンプルは`material_ui`を使用しているが、標準Materialへの切り替えとRiverpodの追加は未実施。
+Windows版Dartはアプリケーション制御ポリシーによって起動を拒否されたため、編集・Git・依存解決・解析・テスト・AndroidビルドはWSL用Flutterで行う。Windows側はAndroidエミュレーターとADBを使用する。Windows向けのソースコピーやWindows版Flutterによるビルドは不要。
 
-**今回の反映は文書のみ。コード実装・依存関係の変更は、ユーザーから着手の指示があるまで待つ。**
+Material Design準拠という方針は維持する。現在のFlutter 3.50.0ではSDK内の`flutter/material.dart`が非推奨で、生成テンプレートもFlutter公式の`material_ui`を使用するため、初期サンプルの`material_ui`と依存設定を維持した。以前の「標準Materialへ切り替える」という案は、これを独自UIライブラリと誤認していたため見直す。公式課題はMaterial Design準拠を求め、import先は指定していない。
+
+起動手順・診断結果・未確認事項は[開発環境と検証記録](docs/environment.md)、AI利用の経緯は[AI利用記録](docs/ai-notes.md)を参照する。Issue #1の機能面の完了条件は満たしている。今回不要な追加SDKの未同意ライセンスとWindows版Dartの制約は記録を維持する。Riverpodの基礎確認は後続作業のため、READMEの段階0全体とは分ける。初期アプリ・設定・関連文書をDraft PRでレビューし、検索・詳細の実装やmainへのマージは行わない。
 
 ## 設計方針（2026-11-18採用・未実装）
 
@@ -31,7 +33,7 @@ READMEを開発方針の基準とし、公式課題の要求仕様を優先す�
 
 | 項目 | 採用方針 | 理由 |
 | --- | --- | --- |
-| UI・状態管理 | Flutter標準のMaterialとRiverpodを使用。コード生成なし | 標準のUIと、処理のつながりを追いやすい構成にする |
+| UI・状態管理 | Flutter公式のMaterial Design UI（現SDKでは`material_ui`）とRiverpodを使用。コード生成なし | 現SDKの公式構成に合わせ、処理のつながりを追いやすくする |
 | 詳細取得 | スケルトンでも非同期のFake詳細取得を設ける | 実通信前に詳細の取得中・失敗・再試行も確認する |
 | 検索結果 | `SearchPage`で一覧・総件数・不完全性・要求ページを保持 | ページ内件数と総件数、不完全な結果を区別する |
 | データ型 | `RepositoryKey`・`RepositorySummary`・`RepositoryDetail`を分ける。詳細は概要データと追加情報を持ち、継承しない | 識別・検索・詳細の役割を明確にする |
@@ -131,7 +133,7 @@ API項目の対応は、`stargazers_count → starCount`、詳細の`subscribers
 
 ### 5. Riverpodの構成
 
-取得窓口を`Provider<GitHubRepositoryGateway>`で提供し、検索は`Notifier<SearchState>`と`NotifierProvider`、詳細は`FutureProvider.autoDispose.family`を使う方針。検索は詳細への移動でも保持し、詳細は画面を離れたら破棄する。コード生成は使わない。採用版・互換性・具体的な記法は導入前に確認する。現在の依存関係にはRiverpodは未追加。
+取得窓口を`Provider<GitHubRepositoryGateway>`で提供し、検索は`Notifier<SearchState>`と`NotifierProvider`、詳細は`FutureProvider.autoDispose.family`を使う方針。検索は詳細への移動でも保持し、詳細は画面を離れたら破棄する。コード生成は使わない。採用版・互換性・具体的な記法は導入前に確認する。Riverpodは未追加。
 
 ### 6. 後で決めること・着手までの作業
 
@@ -144,7 +146,7 @@ API項目の対応は、`stargazers_count → starCount`、詳細の`subscribers
 
 骨組みでは1ページ分を扱う。初回実通信は先頭30件までを出発点とし、提出範囲の確定とは分ける。上記の未決定項目に対する過去の推奨値・候補は、今回の採用判断だけでは確定値にしない。
 
-着手の指示後は、既存環境とGitの初期記録・作業ブランチを確認し、標準Materialへの切り替えとRiverpod導入、取得窓口とFake、検索、詳細と往復の順に進める。依存関係の追加・変更前には確認する。骨組みでは検索の4状態・二重送信防止・詳細の失敗と再試行・戻る際の保持を検証し、実通信の確認とは分けて記録する。
+着手の指示後は、既存環境とGitの初期記録・作業ブランチを確認し、現SDKの公式Material構成を維持してRiverpod導入、取得窓口とFake、検索、詳細と往復の順に進める。依存関係の追加・変更前には確認する。骨組みでは検索の4状態・二重送信防止・詳細の失敗と再試行・戻る際の保持を検証し、実通信の確認とは分けて記録する。
 
 ## 作業ルール
 
