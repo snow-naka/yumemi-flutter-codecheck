@@ -4,6 +4,8 @@
 
 本書はIssue #1時点の初期カウンターアプリと環境の検証記録。Issue #3の段階1ではRiverpodを追加し、カウンター画面を最小起動表示へ整理した。現在の依存関係と基礎確認の結果は[Riverpod導入と基礎確認](riverpod-basics.md)を参照する。
 
+Issue #3の段階5で行った検索・詳細アプリのAndroid実操作とローカル最終検証は、[スケルトン最終検証記録](skeleton-final-verification.md)に分けて記録する。以下のIssue #1当時の記録と、現在のアプリの検証結果を混同しない。
+
 ## 開発環境の選択
 
 - 作業リポジトリ：`/home/snow_/projects/flutter/yumemi-flutter-codecheck`

@@ -25,7 +25,7 @@ Material Design準拠という方針は維持する。現在のFlutter 3.50.0で
 
 起動手順・診断結果・未確認事項は[開発環境と検証記録](docs/environment.md)、AI利用の経緯は[AI利用記録](docs/ai-notes.md)を参照する。Issue #1で扱う環境構築の機能面の完了条件は満たしている。WSLからのAndroidビルド・エミュレーター認識・Debug起動・Hot Reload・Hot Restartに成功し、静的解析は問題なし、全テスト1件が成功した。
 
-今回不要な追加SDK向け7種類の未同意ライセンスとWindows版Dartの制約は、検証済みのWSL開発経路を妨げない既知の制約として記録する。Phase 0の基礎確認として、Riverpodの`watch`・`read`・Providerの差し替え、テスト内での状態分離と非同期失敗の扱いを小さなテストで確認した。結果と動き方は[Riverpod導入と基礎確認](docs/riverpod-basics.md)を参照する。Issue #3の段階1を完了し、段階2でデータ型・取得窓口・Fakeを実装した。[Fake Gatewayの検証記録](docs/fake-gateway.md)を参照する。段階3の検索と段階4の詳細・往復の実装・検証は、[検索スケルトン](docs/search-skeleton.md)と[詳細スケルトン](docs/detail-skeleton.md)を参照する。CIと実通信は未実装で、Phase 1全体の完了とは区別する。
+今回不要な追加SDK向け7種類の未同意ライセンスとWindows版Dartの制約は、検証済みのWSL開発経路を妨げない既知の制約として記録する。Phase 0の基礎確認として、Riverpodの`watch`・`read`・Providerの差し替え、テスト内での状態分離と非同期失敗の扱いを小さなテストで確認した。結果と動き方は[Riverpod導入と基礎確認](docs/riverpod-basics.md)を参照する。Issue #3の段階1を完了し、段階2でデータ型・取得窓口・Fakeを実装した。[Fake Gatewayの検証記録](docs/fake-gateway.md)を参照する。段階3の検索と段階4の詳細・往復の実装・検証は、[検索スケルトン](docs/search-skeleton.md)と[詳細スケルトン](docs/detail-skeleton.md)を参照する。段階5で最小CIを作成し、Android上のFake検索・詳細・戻る・失敗と再試行、ローカル全47テスト・解析・整形チェックを確認した。GitHub上でのCI実行は未確認で、Issue #3・Phase 1全体の完了とは区別する。完了条件との照合と後続手順は[最終検証記録](docs/skeleton-final-verification.md)を参照する。実通信は未実装。
 
 ## 設計方針（2026-11-18採用）
 
