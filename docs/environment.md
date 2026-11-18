@@ -2,6 +2,8 @@
 
 確認日：2026-11-18。対象ブランチ：`feature/1-setup-flutter`。
 
+本書はIssue #1時点の初期カウンターアプリと環境の検証記録。Issue #3の段階1ではRiverpodを追加し、カウンター画面を最小起動表示へ整理した。現在の依存関係と基礎確認の結果は[Riverpod導入と基礎確認](riverpod-basics.md)を参照する。
+
 ## 開発環境の選択
 
 - 作業リポジトリ：`/home/snow_/projects/flutter/yumemi-flutter-codecheck`
