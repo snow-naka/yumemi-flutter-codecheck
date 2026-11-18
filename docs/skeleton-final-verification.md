@@ -1,6 +1,6 @@
 # 段階5：CI整備・Android実操作・最終検証
 
-2026-11-18、Issue #3。対象は`feature/3-skeleton`、基準コミットは`686462ad16aad83e0ded05e306fd313cd7974aea`（段階4）。今回はCI設定と検証資料をローカルで準備した。コミット・Push・PR作成・mainへのマージ、Issueの更新は行っていない。
+2026-11-18、Issue #3。対象は`feature/3-skeleton`、基準コミットは`686462ad16aad83e0ded05e306fd313cd7974aea`（段階4）。初回のローカル検証後、ユーザーの許可を受けて段階5をコミット・Pushし、Draft PR #4を作成した。GitHub Actionsの結果は末尾に追記する。mainへのマージ・Issueの更新は行っていない。
 
 ## 対象コードとログ
 
@@ -64,7 +64,7 @@ WSLの制限付き実行ではADBの待受開始が拒否されたため、許�
 
 ローカルでは既存のPyYAMLでYAMLを読み取り、イベント・SDK指定・Actionsの入力名を確認し、各runコマンドを`bash -n`で構文確認した。公式Flutterタグ3.50.0と、Action実装が利用する現行の配布マニフェストの両方で、ローカルSDKのコミット`ab2912035e160d9cad6306df307576da6128ebdb`、Flutter3.50.0 / Dart3.14.0との一致を確認した。
 
-**GitHub Actions自体は未実行。** ローカルのYAML読み取り・コマンド成功を、GitHubでの成功とは扱わない。SDKアーカイブの新規取得、ActionsのSDKセットアップとクリーンなランナーでのlockfile取得はPush後に確認する。失敗した場合は該当ステップのログを確認し、SDKや依存バージョンを無断で変更しない。
+初回のローカル検証時点ではGitHub Actions自体は未実行だった。その後のPush・PR実行でSDKセットアップ・lockfileによる依存取得も成功した。ローカル確認とGitHubでの確認を分け、対象コミットとRun URLは末尾に記録する。
 
 配布情報の初回確認では旧パスのURLへアクセスしてHTTP404となった。Action v2の`setup.sh`を読み取り、現在の`https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json`で上記の配布情報を確認できた。旧URLの失敗と、現行URLでの成功はローカルログに分けて残す。CI設定の取得先を独自に変更する必要はなかった。
 
@@ -94,9 +94,9 @@ WSLの制限付き実行ではADBの待受開始が拒否されたため、許�
 | 詳細から戻った際に検索語・結果一覧・スクロール位置が保持される | 達成 | 長い一覧の非ゼロ位置を含むWidgetテスト。Androidでは送信語・未送信入力・一覧の保持を確認 |
 | Fakeを使用した自動テストが成功する | 達成 | 全47件成功、GatewayはFakeのまま |
 | flutter analyzeとflutter testが成功する | 達成 | 上記の再実行はいずれも終了コード0 |
-| CIで解析・テストを実行できる | 保留（設定は作成済み） | GitHubでの実行はPush後。YAML・ローカル検証のみでは完了としない |
+| CIで解析・テストを実行できる | 達成 | Push・PRで実行され、解析・全47テスト・整形が成功。対象コミット・Run URLは末尾を参照 |
 
-ローカルの機能・検証は6条件を満たす。最後のCI条件が残るため、Issue #3全体およびREADMEのPhase 1全体を完了扱いにはしない。
+ローカルの6条件に加え、GitHubでのCI成功により7条件を確認した。Phase 1の機能・検証の条件を満たし、Draft PRでのレビューとmainへの取り込みは未完了として分ける。IssueはOpenのまま維持する。
 
 ## 既知の課題・今回の対象外
 
@@ -104,7 +104,7 @@ WSLの制限付き実行ではADBの待受開始が拒否されたため、許�
 
 実GitHub APIのGateway、レート制限処理、追加機能、実機・iOSは今回実装・検証していない。アプリはFakeで動作し、Issue本文・CI定義・SDKタグの照合に用いた読み取り通信とは分けて記録する。
 
-## レビュー後のPush・PR確認手順（今回は未実行）
+## レビュー後のPush・PR確認手順（初回検証時の計画）
 
 1. 今回のCIと関連資料の差分をレビューし、許可後に段階5としてコミットする。アプリ・依存ファイル・ログを追加する変更はない。
 2. `git push -u origin feature/3-skeleton`を実行する。Push時のWorkflowを`gh run list --workflow flutter.yml --branch feature/3-skeleton`で選び、`gh run watch <run-id> --exit-status`で完了を確認する。失敗時は`gh run view <run-id> --log-failed`を読む。
@@ -118,4 +118,20 @@ gh pr create --draft --base main --head feature/3-skeleton \
 
 4. `gh pr checks <PR番号> --watch`でPR側の解析・全テスト・整形の成功も確認する。mainとの組み合わせと対象コミットを確認し、結果・URLを検証記録とPRへ反映する。CI成功後もレビュー完了とマージは別の判断とする。
 
-本文案はPRテンプレートの目的・変更内容と理由・検証・AI利用に沿い、Issue #3全体の段階1〜5とPhase 2への持ち越しを説明する。今回はPR・コメントの投稿やIssueのCloseを行わない。
+本文案はPRテンプレートの目的・変更内容と理由・検証・AI利用に沿い、Issue #3全体の段階1〜5とPhase 2への持ち越しを説明する。初回検証時にはPR・コメントの投稿やIssueのCloseは行わず、その後の承認により以下のGitHub検証へ進んだ。
+
+
+## GitHub Actionsの実行確認（2026-11-18追記）
+
+ユーザーの承認後、段階5の5ファイルを`6140119be6287f0c00b041b14ad5bb708d8606c3`（`ci: add Flutter checks and record skeleton validation`）にコミットし、`feature/3-skeleton`をoriginへPushした。[Draft PR #4](https://github.com/snow-naka/yumemi-flutter-codecheck/pull/4)はmain向けで、本文の`Closes #3`によりIssue #3と関連づけた。PRはDraft、IssueはOpen、mainは未変更。
+
+| イベント | 対象headコミット | 結果 |
+| --- | --- | --- |
+| [Push Run 44296940825](https://github.com/snow-naka/yumemi-flutter-codecheck/actions/runs/44296940825) | `6140119be6287f0c00b041b14ad5bb708d8606c3` | success |
+| [PR Run 44297054048](https://github.com/snow-naka/yumemi-flutter-codecheck/actions/runs/44297054048) | `6140119be6287f0c00b041b14ad5bb708d8606c3` | success |
+
+どちらもGitHubホストランナーでSDKセットアップ、固定依存取得、解析、全47テスト、整形20ファイル・0 changedの成功を実ログで確認した。CI失敗やテストの無効化は発生していない。CLIの`gh run watch --exit-status`も両実行で終了コード0だった。
+
+実行情報と取得したログは`log/issue3/step5/20261118-204100+0900-github/`へ新規保存した。既存のローカル検証ログは維持し、新しいログも`/log/`によりGit管理対象外。
+
+この結果追記は資料だけの変更で、アプリ・テスト・依存設定・Workflowは上記の検証対象と同一。資料更新コミットもPushし、その最新headに対するCI・Draft状態・残存変更はPR本文とローカルの`publication.json`へ記録する。コミット内に自身のコミットIDを含めるための追加更新は行わない。
