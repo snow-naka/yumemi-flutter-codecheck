@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../models/repository_models.dart';
+import '../detail/repository_detail_provider.dart';
+import '../detail/repository_detail_screen.dart';
 import 'search_controller.dart';
 import 'search_state.dart';
 
@@ -29,6 +32,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (ref.read(searchControllerProvider) is SearchLoading) return;
     if (!_formKey.currentState!.validate()) return;
     unawaited(ref.read(searchControllerProvider.notifier).search(_input.text));
+  }
+
+  void _openDetail(RepositorySummary repository) {
+    FocusScope.of(context).unfocus();
+    // autoDisposeの完了前に開き直した場合も、選択した詳細だけを取得し直す。
+    ref.invalidate(repositoryDetailProvider(repository.key));
+    unawaited(
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => RepositoryDetailScreen(summary: repository),
+        ),
+      ),
+    );
   }
 
   @override
@@ -126,6 +142,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       final repository = result.items[index];
                       return ListTile(
                         key: ValueKey(repository.key),
+                        onTap: () => _openDetail(repository),
                         leading: const Icon(Icons.folder_outlined),
                         title: Text(repository.name),
                         subtitle: Text(

@@ -17,7 +17,7 @@
 
 ## 現在の段階（2026-11-18）
 
-別フォルダの初期サンプルから、カウンターアプリ・テスト・Android/iOS設定を選択して取り込んだ。元のREADME・資料・Git管理情報・生成物・ローカル設定は取り込んでいない。検索状態管理・検索画面は段階3で実装済み、詳細画面は未実装。Riverpod 3.5.0を導入し、アプリ起動時に`ProviderScope`を配置した。カウンター画面は最小の起動表示へ置き換え、学習用カウンターはテスト内に限定した。
+別フォルダの初期サンプルから、カウンターアプリ・テスト・Android/iOS設定を選択して取り込んだ。元のREADME・資料・Git管理情報・生成物・ローカル設定は取り込んでいない。検索状態管理・検索画面は段階3、詳細取得・詳細画面・一覧との往復は段階4で実装した。Riverpod 3.5.0を導入し、アプリ起動時に`ProviderScope`を配置した。カウンター画面は検索画面へ置き換え、学習用カウンターはテスト内に限定した。
 
 Windows版Dartはアプリケーション制御ポリシーによって起動を拒否されたため、編集・Git・依存解決・解析・テスト・AndroidビルドはWSL用Flutterで行う。Windows側はAndroidエミュレーターとADBを使用する。Windows向けのソースコピーやWindows版Flutterによるビルドは不要。
 
@@ -25,11 +25,11 @@ Material Design準拠という方針は維持する。現在のFlutter 3.50.0で
 
 起動手順・診断結果・未確認事項は[開発環境と検証記録](docs/environment.md)、AI利用の経緯は[AI利用記録](docs/ai-notes.md)を参照する。Issue #1で扱う環境構築の機能面の完了条件は満たしている。WSLからのAndroidビルド・エミュレーター認識・Debug起動・Hot Reload・Hot Restartに成功し、静的解析は問題なし、全テスト1件が成功した。
 
-今回不要な追加SDK向け7種類の未同意ライセンスとWindows版Dartの制約は、検証済みのWSL開発経路を妨げない既知の制約として記録する。Phase 0の基礎確認として、Riverpodの`watch`・`read`・Providerの差し替え、テスト内での状態分離と非同期失敗の扱いを小さなテストで確認した。結果と動き方は[Riverpod導入と基礎確認](docs/riverpod-basics.md)を参照する。Issue #3の段階1を完了し、段階2でデータ型・取得窓口・Fakeを実装した。[Fake Gatewayの検証記録](docs/fake-gateway.md)を参照する。段階3で検索状態・Controller・検索画面を実装した。[検索スケルトンの検証記録](docs/search-skeleton.md)を参照する。詳細画面とCIは未実装。
+今回不要な追加SDK向け7種類の未同意ライセンスとWindows版Dartの制約は、検証済みのWSL開発経路を妨げない既知の制約として記録する。Phase 0の基礎確認として、Riverpodの`watch`・`read`・Providerの差し替え、テスト内での状態分離と非同期失敗の扱いを小さなテストで確認した。結果と動き方は[Riverpod導入と基礎確認](docs/riverpod-basics.md)を参照する。Issue #3の段階1を完了し、段階2でデータ型・取得窓口・Fakeを実装した。[Fake Gatewayの検証記録](docs/fake-gateway.md)を参照する。段階3の検索と段階4の詳細・往復の実装・検証は、[検索スケルトン](docs/search-skeleton.md)と[詳細スケルトン](docs/detail-skeleton.md)を参照する。CIと実通信は未実装で、Phase 1全体の完了とは区別する。
 
-## 設計方針（2026-11-18採用・未実装）
+## 設計方針（2026-11-18採用）
 
-READMEを開発方針の基準とし、公式課題の要求仕様を優先する。以下はユーザーが採用したアプリ側の設計方針であり、公式課題の追加要件や実装・検証済みの内容ではない。骨組みで確認して見直す場合は、変更理由と検証結果をPRに残す。
+READMEを開発方針の基準とし、公式課題の要求仕様を優先する。以下はユーザーが採用したアプリ側の設計方針であり、公式課題の追加要件ではない。実装・検証状況は上記と各段階の記録を参照する。骨組みで確認して見直す場合は、変更理由と検証結果をPRに残す。
 
 ### 採用した判断と理由
 
@@ -135,7 +135,7 @@ API項目の対応は、`stargazers_count → starCount`、詳細の`subscribers
 
 ### 5. Riverpodの構成
 
-取得窓口を`Provider<GitHubRepositoryGateway>`で提供し、検索は`Notifier<SearchState>`と`NotifierProvider`、詳細は`FutureProvider.autoDispose.family`を使う方針。検索は詳細への移動でも保持し、詳細は画面を離れたら破棄する。コード生成は使わない。`flutter_riverpod ^3.5.0`を導入し、Flutter 3.50.0 / Dart 3.14.0との要求SDKの互換性を確認済み。検索用Providerは実装済み。詳細用Providerは未実装。
+取得窓口を`Provider<GitHubRepositoryGateway>`で提供し、検索は`Notifier<SearchState>`と`NotifierProvider`、詳細は`FutureProvider.autoDispose.family`を使う。検索は詳細への移動でも保持し、詳細は画面を離れたら破棄する。コード生成は使わない。`flutter_riverpod ^3.5.0`を導入し、Flutter 3.50.0 / Dart 3.14.0との要求SDKの互換性を確認済み。検索・詳細用Providerは実装済みで、互いの状態へ依存せず同じ取得窓口を利用する。
 
 ### 6. 後で決めること・着手までの作業
 

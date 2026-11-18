@@ -5,13 +5,13 @@
 方針採用・更新日：2026-11-18  
 位置づけ：ユーザーが採用したスケルトンの構成・責務を整理したもの。ファイル名は既存の参照を保つため変更しない。
 
-**採用済みの設計方針と、未実装・未検証を区別する。** 2026-11-18に構成・データの役割分担・状態管理・操作方針を採用した。ファイル配置や表示の詳細は実装時に調整する。初期サンプルを取り込み、段階1でRiverpod 3.5.0を追加した。ユーザーによるシミュレーターの動作確認を、環境診断・解析・テスト全体の完了とは扱わない。段階3までに検索状態・Controller・検索画面を実装済み。詳細画面は未実装。
+**採用済みの設計方針と、未実装・未検証を区別する。** 2026-11-18に構成・データの役割分担・状態管理・操作方針を採用した。ファイル配置や表示の詳細は実装時に調整する。初期サンプルを取り込み、段階1でRiverpod 3.5.0を追加した。ユーザーによるシミュレーターの動作確認を、環境診断・解析・テスト全体の完了とは扱わない。段階3までに検索状態・Controller・検索画面を実装済み。詳細画面・一覧との往復は段階4で実装済み。検証は[詳細スケルトン](detail-skeleton.md)を参照する。
 
 ### 環境構築時の更新（2026-11-18）
 
 初期カウンターアプリとテスト・Android/iOS設定をこのリポジトリへ取り込んだ。Windows版Dartの起動拒否を実際に確認したため、ビルド・解析・テストはWSL用SDK、実行先はWindowsのAndroidエミュレーターとする。
 
-現在のSDKでは`flutter/material.dart`に非推奨指定があり、公式`material_ui`を推奨している。課題のMaterial Design準拠を満たすため、初期サンプルの`material_ui`と依存設定を維持する。標準Materialへ切り替えるという以前の案は、この調査結果により見直す。詳細と検証結果は[開発環境](environment.md)を参照する。Riverpod 3.5.0は導入済みで、検索・詳細は未実装。基礎APIの確認は[Riverpod導入と基礎確認](riverpod-basics.md)を参照する。
+現在のSDKでは`flutter/material.dart`に非推奨指定があり、公式`material_ui`を推奨している。課題のMaterial Design準拠を満たすため、初期サンプルの`material_ui`と依存設定を維持する。標準Materialへ切り替えるという以前の案は、この調査結果により見直す。詳細と検証結果は[開発環境](environment.md)を参照する。Riverpod 3.5.0は導入済み。環境構築後、検索は段階3、詳細は段階4で実装した。基礎APIの確認は[Riverpod導入と基礎確認](riverpod-basics.md)を参照する。
 
 ## 1. この資料で整理すること
 
@@ -98,7 +98,7 @@
 
 ### 取得窓口
 
-採用した取得窓口の契約を再掲する。データ型・窓口・Fakeは段階2で実装済み。検索状態・Controller・検索画面は段階3で実装済み。詳細画面は未実装。検索の検証は[検索スケルトン](search-skeleton.md)を参照する。ApiFailureのHTTP詳細分類や待機情報はPhase 2で拡張する。実装と再現方法は[Fake Gatewayの検証記録](fake-gateway.md)を参照する。
+採用した取得窓口の契約を再掲する。データ型・窓口・Fakeは段階2で実装済み。検索状態・Controller・検索画面は段階3で実装済み。詳細画面・一覧との往復は段階4で実装済み。検証は[詳細スケルトン](detail-skeleton.md)を参照する。検索の検証は[検索スケルトン](search-skeleton.md)を参照する。ApiFailureのHTTP詳細分類や待機情報はPhase 2で拡張する。実装と再現方法は[Fake Gatewayの検証記録](fake-gateway.md)を参照する。
 
 ```dart
 abstract interface class GitHubRepositoryGateway {
@@ -126,7 +126,7 @@ abstract interface class GitHubRepositoryGateway {
 | 詳細の取得状態 | リポジトリ別の詳細Provider | `AsyncValue`の取得中・成功・失敗を利用し、画面を離れたら破棄する |
 | 再送までの待機情報 | 取得側と`ApiFailure` | 画面だけでなく取得側でも早すぎる再送を防ぐ。具体的な保存場所は実通信実装前に決める |
 
-検索は`Notifier<SearchState>`、詳細は`FutureProvider.autoDispose.family`を使う方針。検索の独自4状態に`AsyncValue`を重ねて二重管理しない。コード生成は使わず、検索は詳細への移動で破棄しない。Riverpod 3.5.0の導入版・互換性と基礎APIは段階1で確認済み。検索状態・Controller・検索画面は段階3で実装済み。詳細の実装はこれから行う。
+検索は`Notifier<SearchState>`、詳細は`FutureProvider.autoDispose.family`を使う方針。検索の独自4状態に`AsyncValue`を重ねて二重管理しない。コード生成は使わず、検索は詳細への移動で破棄しない。Riverpod 3.5.0の導入版・互換性と基礎APIは段階1で確認済み。検索状態・Controller・検索画面は段階3で実装済み。詳細Provider・詳細画面・一覧との往復は段階4で実装済み。
 
 ### 検索
 
