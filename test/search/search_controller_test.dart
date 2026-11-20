@@ -670,6 +670,61 @@ void main() {
     expect(calls, hasLength(1));
     expect(calls.single.page, 1);
   });
+
+  for (final fails in [false, true]) {
+    test('T20: 空入力で既存状態を維持する (failure=$fails)', () async {
+      // 初期状態で空入力しても検索しない
+      expect(container.read(searchControllerProvider), isA<SearchIdle>());
+
+      await controller.search('   ');
+
+      expect(container.read(searchControllerProvider), isA<SearchIdle>());
+      expect(queries, isEmpty);
+
+      // 最初の検索を実行
+      final task = controller.search('flutter');
+
+      if (fails) {
+        requests.single.completeError(
+          const ApiFailure(
+            kind: ApiFailureKind.network,
+            safeMessage: 'テスト用の通信失敗',
+          ),
+        );
+      } else {
+        requests.single.complete(resultPage());
+      }
+
+      await task;
+
+      final previous = container.read(searchControllerProvider);
+
+      expect(previous, fails ? isA<SearchFailure>() : isA<SearchResults>());
+
+      // 結果取得後・失敗後の空入力
+      await controller.search('   ');
+
+      // 状態を変更しない
+      expect(container.read(searchControllerProvider), same(previous));
+      expect(queries, ['flutter']);
+    });
+  }
+  test('T21: Provider破棄後の遅延応答を安全に無視する', () async {
+    final task = controller.search('flutter');
+
+    expect(container.read(searchControllerProvider), isA<SearchLoading>());
+
+    // 検索完了前にProviderContainerを破棄
+    container.dispose();
+
+    // 破棄後にAPIエラーが到着
+    requests.single.completeError(
+      const ApiFailure(kind: ApiFailureKind.network, safeMessage: '遅延した通信失敗'),
+    );
+
+    // 破棄済みProviderへの更新などで例外終了しない
+    await task;
+  });
 }
 
 SearchPage _page({
