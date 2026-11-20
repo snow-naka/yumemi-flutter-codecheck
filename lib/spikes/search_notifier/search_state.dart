@@ -37,6 +37,7 @@ final class SearchResults extends SearchState {
     required this.totalCount,
     required this.incompleteResults,
     required this.loadedPage,
+    required this.perPage,
     required this.loadMore,
   }) : items = List.unmodifiable(items) {
     if (this.items.isEmpty) {
@@ -45,6 +46,9 @@ final class SearchResults extends SearchState {
     if (loadedPage < 1) {
       throw ArgumentError.value(loadedPage, 'loadedPage');
     }
+    if (perPage < 1 || perPage > 100) {
+      throw ArgumentError.value(perPage, 'perPage');
+    }
   }
 
   final String query;
@@ -52,7 +56,25 @@ final class SearchResults extends SearchState {
   final int totalCount;
   final bool incompleteResults;
   final int loadedPage;
+  final int perPage;
   final LoadMoreState loadMore;
+
+  SearchResults copyWith({
+    List<RepositorySummary>? items,
+    int? loadedPage,
+    bool? incompleteResults,
+    required LoadMoreState loadMore,
+  }) {
+    return SearchResults(
+      query: query,
+      items: items ?? this.items,
+      totalCount: totalCount,
+      incompleteResults: incompleteResults ?? this.incompleteResults,
+      loadedPage: loadedPage ?? this.loadedPage,
+      perPage: perPage,
+      loadMore: loadMore,
+    );
+  }
 }
 
 // 追加読み込みの状態

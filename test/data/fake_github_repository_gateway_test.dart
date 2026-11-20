@@ -265,6 +265,79 @@ void main() {
       ),
     );
   });
+
+  test('F07: 検索途中で件数が減少し空ページになる', () async {
+    final fake = FakeGitHubRepositoryGateway(
+      delay: Duration.zero,
+      searchHandler: (query, {required page, required perPage}) async {
+        expect(query, 'sample');
+        expect(perPage, 100);
+
+        switch (page) {
+          case 1:
+            return SearchPage(
+              items: _buildSearchItems(100),
+              totalCount: 101,
+              incompleteResults: false,
+              page: 1,
+              perPage: perPage,
+              navigation: const NextPage(2),
+            );
+
+          case 2:
+            // 検索対象が減少したことを模擬する。
+            return SearchPage(
+              items: [],
+              totalCount: 99,
+              incompleteResults: false,
+              page: 2,
+              perPage: perPage,
+              navigation: const PageEnd(SearchEndReason.exhausted),
+            );
+
+          default:
+            throw StateError('Unexpected page: $page');
+        }
+      },
+    );
+
+    // 最初のページは100件取得できる。
+    final first = await fake.searchRepositories(
+      'sample',
+      page: 1,
+      perPage: 100,
+    );
+
+    expect(first.items, hasLength(100));
+    expect(first.totalCount, 101);
+    expect(
+      first.navigation,
+      isA<NextPage>().having((nav) => nav.page, 'next page', 2),
+    );
+
+    // 検索対象が減少した後の2ページ目。
+    final second = await fake.searchRepositories(
+      'sample',
+      page: 2,
+      perPage: 100,
+    );
+
+    expect(second.page, 2);
+    expect(second.items, isEmpty);
+    expect(second.totalCount, 99);
+    expect(
+      second.navigation,
+      isA<PageEnd>().having(
+        (nav) => nav.reason,
+        'end reason',
+        SearchEndReason.exhausted,
+      ),
+    );
+
+    // 先に取得したページの内容は変化しない。
+    expect(first.items, hasLength(100));
+    expect(first.totalCount, 101);
+  });
 }
 
 List<RepositorySummary> _buildSearchItems(int count) {
