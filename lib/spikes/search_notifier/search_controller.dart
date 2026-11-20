@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'dart:developer' as developer;
+
 import '../../models/api_failure.dart';
 import '../../models/repository_models.dart' show NextPage, PageEnd;
 import '../../providers.dart';
+
 import 'search_state.dart';
+import 'unexpected_error_reporter.dart';
 
 final spikeSearchControllerProvider =
     NotifierProvider<SpikeSearchController, SearchState>(
@@ -29,7 +33,7 @@ class SpikeSearchController extends Notifier<SearchState> {
 
     final requestRef = ref;
     final gateway = requestRef.read(githubRepositoryGatewayProvider);
-
+    final reporter = requestRef.read(unexpectedErrorReporterProvider);
     // この検索を識別する番号を発行。
     final generation = ++_requestGeneration;
 
@@ -78,11 +82,9 @@ class SpikeSearchController extends Notifier<SearchState> {
         return;
       }
 
-      // 内部エラーを通信失敗と区別する。
       state = SearchFailure(query, const UnexpectedSearchProblem());
 
-      // 比較試作では呼び出し元へ例外を伝える。
-      Error.throwWithStackTrace(error, stackTrace);
+      _reportUnexpectedSafely(reporter, error, stackTrace);
     }
   }
 
@@ -124,7 +126,7 @@ class SpikeSearchController extends Notifier<SearchState> {
 
     final requestRef = ref;
     final gateway = requestRef.read(githubRepositoryGatewayProvider);
-
+    final reporter = requestRef.read(unexpectedErrorReporterProvider);
     final generation = ++_requestGeneration;
     final requestedPage = current.loadedPage + 1;
 
@@ -183,8 +185,33 @@ class SpikeSearchController extends Notifier<SearchState> {
         loadMore: const LoadMoreFailure(UnexpectedSearchProblem()),
       );
 
-      // 比較試作では内部エラーを呼び出し元へ伝える。
-      Error.throwWithStackTrace(error, stackTrace);
+      _reportUnexpectedSafely(reporter, error, stackTrace);
+    }
+  }
+
+  void _reportUnexpectedSafely(
+    UnexpectedErrorReporter reporter,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    try {
+      reporter.report(error, stackTrace);
+    } catch (reportError, reportStackTrace) {
+      // Reporterの失敗で検索状態を壊さない。
+      // 比較試作では別の診断出力へフォールバックする。
+      developer.log(
+        'Unexpected error reporter failed',
+        name: 'yumemi.search.spike',
+        error: reportError,
+        stackTrace: reportStackTrace,
+      );
+
+      developer.log(
+        'Original unexpected search error',
+        name: 'yumemi.search.spike',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

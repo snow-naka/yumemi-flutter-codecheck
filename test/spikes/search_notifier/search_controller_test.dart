@@ -8,6 +8,7 @@ import 'package:yumemi_app/providers.dart';
 import 'package:yumemi_app/spikes/search_notifier/search_controller.dart';
 import 'package:yumemi_app/spikes/search_notifier/search_state.dart';
 import 'package:yumemi_app/models/api_failure.dart';
+import 'package:yumemi_app/spikes/search_notifier/unexpected_error_reporter.dart';
 
 import '../../search/search_test_support.dart';
 
@@ -18,10 +19,12 @@ void main() {
   late List<String> queries;
   late List<Completer<SearchPage>> requests;
   late List<({String query, int page, int perPage})> calls;
+  late _RecordingUnexpectedErrorReporter reporter;
   setUp(() {
     queries = [];
     requests = [];
     calls = [];
+    reporter = _RecordingUnexpectedErrorReporter();
     final fake = FakeGitHubRepositoryGateway(
       searchHandler: (query, {required page, required perPage}) {
         queries.add(query);
@@ -35,7 +38,10 @@ void main() {
     );
 
     container = ProviderContainer.test(
-      overrides: [githubRepositoryGatewayProvider.overrideWithValue(fake)],
+      overrides: [
+        githubRepositoryGatewayProvider.overrideWithValue(fake),
+        unexpectedErrorReporterProvider.overrideWithValue(reporter),
+      ],
     );
 
     controller = container.read(spikeSearchControllerProvider.notifier);
@@ -460,13 +466,10 @@ void main() {
 
     expect(container.read(spikeSearchControllerProvider), isA<SearchLoading>());
 
-    // エラーを検証するFutureを先に登録する。
-    final errorCheck = expectLater(taskA, throwsA(isA<StateError>()));
-
     // Gatewayで想定外例外が発生
     requests[0].completeError(StateError('想定外の内部エラー'));
 
-    await errorCheck;
+    await taskA;
 
     // Loadingに残らず、内部エラーとして分類される。
     final failed =
@@ -512,12 +515,10 @@ void main() {
     // 2ページ目の追加読み込み
     final loadTask = controller.loadMore();
 
-    final errorCheck = expectLater(loadTask, throwsA(isA<StateError>()));
-
     // 想定外例外を発生させる
     requests[1].completeError(StateError('追加取得の内部エラー'));
 
-    await errorCheck;
+    await loadTask;
 
     final failed =
         container.read(spikeSearchControllerProvider) as SearchResults;
@@ -556,6 +557,98 @@ void main() {
     expect(result.loadedPage, 2);
     expect(result.loadMore, isA<LoadMoreEnd>());
   });
+
+  test('T15: 初回検索の内部エラーをReporterへ通知', () async {
+    final originalError = StateError('Internal failure');
+
+    final task = controller.search('flutter');
+
+    requests[0].completeError(originalError);
+
+    await task;
+
+    final failed = container.read(spikeSearchControllerProvider);
+
+    expect(failed, isA<SearchFailure>());
+
+    final failure = failed as SearchFailure;
+    expect(failure.problem, isA<UnexpectedSearchProblem>());
+
+    expect(reporter.reports, hasLength(1));
+    expect(reporter.reports.single.error, same(originalError));
+    expect(reporter.reports.single.stackTrace, isA<StackTrace>());
+  });
+
+  test('T16: 追加取得の内部エラーをReporterへ通知', () async {
+    final firstTask = controller.search('flutter');
+
+    requests[0].complete(
+      _page(page: 1, ids: [1, 2], totalCount: 3, navigation: const NextPage(2)),
+    );
+
+    await firstTask;
+
+    final loadTask = controller.loadMore();
+    final originalError = StateError('Load more failure');
+
+    requests[1].completeError(originalError);
+
+    await loadTask;
+
+    final state =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    expect(state.items, hasLength(2));
+    expect(state.loadedPage, 1);
+    expect(state.loadMore, isA<LoadMoreFailure>());
+
+    final failure = state.loadMore as LoadMoreFailure;
+    expect(failure.problem, isA<UnexpectedSearchProblem>());
+
+    expect(reporter.reports, hasLength(1));
+    expect(reporter.reports.single.error, same(originalError));
+  });
+
+  test('T17: Reporterが失敗しても検索を再開できる', () async {
+    reporter.throwOnReport = true;
+
+    final taskA = controller.search('flutter');
+
+    requests[0].completeError(StateError('Gateway internal failure'));
+
+    // Reporterが失敗してもControllerのFutureは完了する。
+    await taskA;
+
+    final failed = container.read(spikeSearchControllerProvider);
+
+    expect(failed, isA<SearchFailure>());
+    expect((failed as SearchFailure).problem, isA<UnexpectedSearchProblem>());
+
+    expect(reporter.reports, hasLength(1));
+
+    // 次の検索を実行できる。
+    final taskB = controller.search('dart');
+
+    expect(calls, hasLength(2));
+    expect(calls.last.query, 'dart');
+
+    requests[1].complete(
+      _page(
+        page: 1,
+        ids: [10],
+        totalCount: 1,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await taskB;
+
+    final result =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    expect(result.query, 'dart');
+    expect(result.items.single.key.id, 10);
+  });
 }
 
 SearchPage _page({
@@ -583,4 +676,20 @@ SearchPage _page({
     perPage: perPage,
     navigation: navigation,
   );
+}
+
+final class _RecordingUnexpectedErrorReporter
+    implements UnexpectedErrorReporter {
+  final reports = <({Object error, StackTrace stackTrace})>[];
+
+  bool throwOnReport = false;
+
+  @override
+  void report(Object error, StackTrace stackTrace) {
+    reports.add((error: error, stackTrace: stackTrace));
+
+    if (throwOnReport) {
+      throw StateError('Reporter failed');
+    }
+  }
 }
