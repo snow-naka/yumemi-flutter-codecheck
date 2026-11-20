@@ -80,8 +80,6 @@ final class LoadMoreEnd extends LoadMoreState {
   final SearchEndReason reason;
 }
 
-enum SearchEndReason { exhausted, githubLimitReached }
-
 // 失敗原因の分類
 sealed class SearchProblem {
   const SearchProblem();

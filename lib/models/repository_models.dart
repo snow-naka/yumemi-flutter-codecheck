@@ -55,11 +55,49 @@ class SearchPage {
     required this.incompleteResults,
     required this.page,
     required this.perPage,
-  }) : items = List.unmodifiable(items);
+    required this.navigation,
+  }) : items = List.unmodifiable(items) {
+    if (page < 1) {
+      throw ArgumentError.value(page, 'page');
+    }
+    if (perPage < 1 || perPage > 100) {
+      throw ArgumentError.value(perPage, 'perPage');
+    }
+    if (totalCount < 0) {
+      throw ArgumentError.value(totalCount, 'totalCount');
+    }
+    if (this.items.length > perPage) {
+      throw ArgumentError.value(this.items.length, 'items.length');
+    }
+
+    final nav = navigation;
+    if (nav is NextPage && nav.page != page + 1) {
+      throw ArgumentError.value(nav.page, 'navigation.page');
+    }
+  }
 
   final List<RepositorySummary> items;
   final int totalCount;
   final bool incompleteResults;
   final int page;
   final int perPage;
+  final PageNavigation navigation;
 }
+
+sealed class PageNavigation {
+  const PageNavigation();
+}
+
+final class NextPage extends PageNavigation {
+  const NextPage(this.page);
+
+  final int page;
+}
+
+final class PageEnd extends PageNavigation {
+  const PageEnd(this.reason);
+
+  final SearchEndReason reason;
+}
+
+enum SearchEndReason { exhausted, githubLimitReached }

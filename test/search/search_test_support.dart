@@ -16,4 +16,5 @@ SearchPage resultPage({int count = 1, bool incomplete = false}) => SearchPage(
   incompleteResults: incomplete,
   page: 1,
   perPage: 30,
+  navigation: const PageEnd(SearchEndReason.exhausted),
 );

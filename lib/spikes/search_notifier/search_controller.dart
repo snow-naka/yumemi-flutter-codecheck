@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/api_failure.dart';
+import '../../models/repository_models.dart' show NextPage, PageEnd;
 import '../../providers.dart';
 import 'search_state.dart';
 
@@ -52,9 +53,10 @@ class SpikeSearchController extends Notifier<SearchState> {
 
       // 暫定判定。
       // PageNavigationが実装されたら置き換える。
-      final hasMore =
-          page.items.length == page.perPage &&
-          page.page * page.perPage < page.totalCount;
+      final LoadMoreState loadMore = switch (page.navigation) {
+        NextPage() => const LoadMoreAvailable(),
+        PageEnd(:final reason) => LoadMoreEnd(reason),
+      };
 
       state = SearchResults(
         query: query,
@@ -62,9 +64,7 @@ class SpikeSearchController extends Notifier<SearchState> {
         totalCount: page.totalCount,
         incompleteResults: page.incompleteResults,
         loadedPage: page.page,
-        loadMore: hasMore
-            ? const LoadMoreAvailable()
-            : const LoadMoreEnd(SearchEndReason.exhausted),
+        loadMore: loadMore,
       );
     } on ApiFailure catch (failure) {
       if (!requestRef.mounted || generation != _requestGeneration) {
