@@ -389,6 +389,173 @@ void main() {
 
     expect(successB.items.map((item) => item.key.id).toList(), [10, 11]);
   });
+
+  test('T11: 初回検索中の新しい検索要求を拒否する', () async {
+    final taskA = controller.search('flutter');
+
+    final loadingA = container.read(spikeSearchControllerProvider);
+
+    expect(loadingA, isA<SearchLoading>());
+
+    // 検索Aが未完了の間にBを要求
+    await controller.search('dart');
+
+    // GatewayはAの1回しか呼ばれない
+    expect(calls, hasLength(1));
+    expect(calls.single.query, 'flutter');
+
+    expect(container.read(spikeSearchControllerProvider), same(loadingA));
+
+    requests.single.complete(
+      _page(
+        page: 1,
+        ids: [1],
+        totalCount: 1,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await taskA;
+
+    final result =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    expect(result.query, 'flutter');
+    expect(result.items.single.key.id, 1);
+  });
+
+  test('T12: Provider無効化後の古い応答を無視する', () async {
+    // 古いControllerで検索開始
+    final oldTask = controller.search('flutter');
+
+    expect(requests, hasLength(1));
+
+    // Futureが未完了のままProviderを無効化
+    container.invalidate(spikeSearchControllerProvider);
+
+    // 新しいControllerの状態を確認
+    final newState = container.read(spikeSearchControllerProvider);
+
+    expect(newState, isA<SearchIdle>());
+
+    // 古い検索が後から完了する
+    requests.single.complete(
+      _page(
+        page: 1,
+        ids: [1],
+        totalCount: 1,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await oldTask;
+
+    // 新しいControllerには影響しない
+    expect(container.read(spikeSearchControllerProvider), isA<SearchIdle>());
+  });
+
+  test('T13: 想定外例外後も再検索できる', () async {
+    // 1回目の検索
+    final taskA = controller.search('flutter');
+
+    expect(container.read(spikeSearchControllerProvider), isA<SearchLoading>());
+
+    // エラーを検証するFutureを先に登録する。
+    final errorCheck = expectLater(taskA, throwsA(isA<StateError>()));
+
+    // Gatewayで想定外例外が発生
+    requests[0].completeError(StateError('想定外の内部エラー'));
+
+    await errorCheck;
+
+    // Loadingに残らず、内部エラーとして分類される。
+    final failed =
+        container.read(spikeSearchControllerProvider) as SearchFailure;
+
+    expect(failed.query, 'flutter');
+    expect(failed.problem, isA<UnexpectedSearchProblem>());
+
+    // エラー後の新しい検索
+    final taskB = controller.search('dart');
+
+    expect(calls, hasLength(2));
+    expect(calls.last.query, 'dart');
+
+    requests[1].complete(
+      _page(
+        page: 1,
+        ids: [10],
+        totalCount: 1,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await taskB;
+
+    final result =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    expect(result.query, 'dart');
+    expect(result.items.single.key.id, 10);
+  });
+
+  test('T14: 追加読み込みの想定外例外でも既存結果を保持', () async {
+    // 1ページ目の取得
+    final firstTask = controller.search('flutter');
+
+    requests[0].complete(
+      _page(page: 1, ids: [1, 2], totalCount: 3, navigation: const NextPage(2)),
+    );
+
+    await firstTask;
+
+    // 2ページ目の追加読み込み
+    final loadTask = controller.loadMore();
+
+    final errorCheck = expectLater(loadTask, throwsA(isA<StateError>()));
+
+    // 想定外例外を発生させる
+    requests[1].completeError(StateError('追加取得の内部エラー'));
+
+    await errorCheck;
+
+    final failed =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    // 取得済みの一覧とページ番号は変わらない。
+    expect(failed.items.map((e) => e.key.id).toList(), [1, 2]);
+    expect(failed.loadedPage, 1);
+
+    // 追加読み込みの内部エラーとして分類される。
+    expect(failed.loadMore, isA<LoadMoreFailure>());
+
+    final problem = (failed.loadMore as LoadMoreFailure).problem;
+
+    expect(problem, isA<UnexpectedSearchProblem>());
+
+    // 同じ2ページ目を再試行できる。
+    final retryTask = controller.retryLoadMore();
+
+    expect(calls.last.page, 2);
+
+    requests[2].complete(
+      _page(
+        page: 2,
+        ids: [3],
+        totalCount: 3,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await retryTask;
+
+    final result =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    expect(result.items.map((e) => e.key.id).toList(), [1, 2, 3]);
+    expect(result.loadedPage, 2);
+    expect(result.loadMore, isA<LoadMoreEnd>());
+  });
 }
 
 SearchPage _page({
