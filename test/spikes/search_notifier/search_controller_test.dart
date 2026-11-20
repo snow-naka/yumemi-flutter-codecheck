@@ -272,6 +272,123 @@ void main() {
     expect(result.loadedPage, 2);
     expect(result.loadMore, isA<LoadMoreEnd>());
   });
+
+  test('T09: 追加読み込みキャンセル後の新規検索を保護する', () async {
+    // 検索Aの1ページ目を取得
+    final firstTask = controller.search('flutter');
+
+    requests[0].complete(
+      _page(page: 1, ids: [1, 2], totalCount: 3, navigation: const NextPage(2)),
+    );
+    await firstTask;
+
+    // 検索Aの2ページ目を開始（未完了）
+    final loadTask = controller.loadMore();
+
+    expect(calls.last.query, 'flutter');
+    expect(calls.last.page, 2);
+
+    // 追加読み込みをキャンセル
+    controller.cancel();
+
+    final cancelled =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    expect(cancelled.items, hasLength(2));
+    expect(cancelled.loadMore, isA<LoadMoreAvailable>());
+
+    // 新しい検索Bを開始
+    final taskB = controller.search('dart');
+
+    expect(calls, hasLength(3));
+    expect(calls.last.query, 'dart');
+    expect(calls.last.page, 1);
+
+    final loadingB = container.read(spikeSearchControllerProvider);
+
+    expect(loadingB, isA<SearchLoading>());
+    expect((loadingB as SearchLoading).query, 'dart');
+
+    // キャンセル済みの検索A・2ページ目が後から成功
+    requests[1].complete(
+      _page(
+        page: 2,
+        ids: [3],
+        totalCount: 3,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+    await loadTask;
+
+    // 古いAの完了によってBのLoadingは変わらない
+    expect(container.read(spikeSearchControllerProvider), same(loadingB));
+
+    // 検索Bを正常完了させる
+    requests[2].complete(
+      _page(
+        page: 1,
+        ids: [10, 11],
+        totalCount: 2,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+    await taskB;
+
+    final result =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    expect(result.query, 'dart');
+    expect(result.items.map((item) => item.key.id).toList(), [10, 11]);
+    expect(result.loadedPage, 1);
+  });
+
+  test('T10: 古い追加読み込みの失敗で新しい成功結果を壊さない', () async {
+    // 検索Aの初回取得
+    final firstTask = controller.search('flutter');
+
+    requests[0].complete(
+      _page(page: 1, ids: [1, 2], totalCount: 3, navigation: const NextPage(2)),
+    );
+    await firstTask;
+
+    // Aの2ページ目を開始
+    final loadTask = controller.loadMore();
+
+    // Aの追加取得をキャンセル
+    controller.cancel();
+
+    // あえて同じ検索語でもう一度検索する
+    final taskB = controller.search('flutter');
+
+    expect(calls, hasLength(3));
+
+    // 新しい検索Bを先に成功させる
+    requests[2].complete(
+      _page(
+        page: 1,
+        ids: [10, 11],
+        totalCount: 2,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+    await taskB;
+
+    final successB =
+        container.read(spikeSearchControllerProvider) as SearchResults;
+
+    expect(successB.items.map((item) => item.key.id).toList(), [10, 11]);
+
+    // キャンセル済みAの追加取得が後から失敗する
+    requests[1].completeError(
+      const ApiFailure(kind: ApiFailureKind.network, safeMessage: '古い検索の通信失敗'),
+    );
+    await loadTask;
+
+    // AのエラーでBの成功状態が上書きされない
+    expect(container.read(spikeSearchControllerProvider), same(successB));
+
+    expect(successB.items.map((item) => item.key.id).toList(), [10, 11]);
+  });
 }
 
 SearchPage _page({
