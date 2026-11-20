@@ -92,15 +92,15 @@ void main() {
   ) async {
     final container = await start(tester);
     final searchState =
-        container.read(searchControllerProvider) as SearchSuccess;
+        container.read(searchControllerProvider) as SearchResults;
     await open(tester);
-    expect(keys, [searchState.result.items.first.key]);
+    expect(keys, [searchState.items.first.key]);
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('言語：Dart'), findsOneWidget);
     expect(find.text('詳細情報を取得中…'), findsOneWidget);
     expect(find.textContaining('Watcher数：'), findsNothing);
     expect(find.textContaining('Star数：'), findsNothing);
-    final old = searchState.result.items.first;
+    final old = searchState.items.first;
     final updated = RepositorySummary(
       key: old.key,
       avatarUrl: '',
@@ -126,7 +126,7 @@ void main() {
     (tester) async {
       final container = await start(tester);
       final searchState =
-          container.read(searchControllerProvider) as SearchSuccess;
+          container.read(searchControllerProvider) as SearchResults;
       await open(tester);
       requests.single.completeError(
         const ApiFailure(kind: ApiFailureKind.network, safeMessage: '仮の詳細取得失敗'),
@@ -144,10 +144,7 @@ void main() {
       expect(find.text('詳細情報を取得中…'), findsOneWidget);
       expect(find.text('仮の詳細取得失敗'), findsNothing);
       requests.last.complete(
-        RepositoryDetail(
-          summary: searchState.result.items.first,
-          watcherCount: 8,
-        ),
+        RepositoryDetail(summary: searchState.items.first, watcherCount: 8),
       );
       await tester.pump();
       expect(find.text('Watcher数：8'), findsOneWidget);
@@ -176,7 +173,7 @@ void main() {
           .controller!
           .offset;
       final searchState =
-          container.read(searchControllerProvider) as SearchSuccess;
+          container.read(searchControllerProvider) as SearchResults;
       await open(tester, name: 'repository-12');
       requests.single.completeError(
         const ApiFailure(
@@ -209,8 +206,8 @@ void main() {
     (tester) async {
       final container = await start(tester);
       final searchState =
-          container.read(searchControllerProvider) as SearchSuccess;
-      final summary = searchState.result.items.first;
+          container.read(searchControllerProvider) as SearchResults;
+      final summary = searchState.items.first;
       await open(tester);
       await back(tester);
       expect(
@@ -238,9 +235,8 @@ void main() {
     tester,
   ) async {
     final container = await start(tester);
-    final summary = (container.read(
-      searchControllerProvider,
-    ) as SearchSuccess).result.items.first;
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
     await open(tester);
     requests.single.complete(
       RepositoryDetail(summary: summary, watcherCount: 8),

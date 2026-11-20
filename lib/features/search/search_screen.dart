@@ -29,8 +29,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _submit() {
-    if (ref.read(searchControllerProvider) is SearchLoading) return;
+    final current = ref.read(searchControllerProvider);
+
+    // 初回検索中・追加読み込み中は新しい検索を受け付けない。
+    if (current is SearchLoading ||
+        (current is SearchResults && current.loadMore is LoadMoreLoading)) {
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
+
     unawaited(ref.read(searchControllerProvider.notifier).search(_input.text));
   }
 
@@ -50,7 +58,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(searchControllerProvider);
-    final loading = state is SearchLoading;
+    final busy =
+        state is SearchLoading ||
+        (state is SearchResults && state.loadMore is LoadMoreLoading);
     return Scaffold(
       appBar: AppBar(title: const Text('Repository Search')),
       body: SafeArea(
@@ -73,7 +83,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               const SizedBox(height: 8),
               FilledButton(
-                onPressed: loading ? null : _submit,
+                onPressed: busy ? null : _submit,
                 child: const Text('検索'),
               ),
               if (state.query != null)
@@ -91,22 +101,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _content(SearchState state) {
     return switch (state) {
-      SearchInitial() => const Center(child: Text('キーワードを入力して検索してください。')),
-      SearchLoading() => const Center(
+      SearchIdle() => const Center(child: Text('キーワードを入力して検索してください。')),
+
+      SearchLoading() => Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 12),
-            Text('検索中…'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 12),
+            const Text('検索中…'),
+            TextButton(
+              onPressed: () =>
+                  ref.read(searchControllerProvider.notifier).cancel(),
+              child: const Text('キャンセル'),
+            ),
           ],
         ),
       ),
-      SearchFailure(:final query, :final failure) => Center(
+
+      SearchFailure(:final query, :final problem) => Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(failure.safeMessage),
+            Text(_problemMessage(problem)),
             const SizedBox(height: 8),
             OutlinedButton(
               onPressed: () => unawaited(
@@ -117,43 +134,115 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ],
         ),
       ),
-      SearchSuccess(:final result) => Column(
+
+      SearchEmpty(:final totalCount, :final incompleteResults) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (result.incompleteResults) const Text('検索結果が不完全な可能性があります。'),
-          Text('表示中：${result.items.length}件（総件数：${result.totalCount}件）'),
-          if (result.totalCount > result.items.length &&
-              result.items.isNotEmpty)
-            const Text('1ページ分の結果を表示しています。'),
-          const SizedBox(height: 8),
+          if (incompleteResults) const Text('検索結果が不完全な可能性があります。'),
+          Text('表示中：0件（総件数：$totalCount件）'),
           Expanded(
-            child: result.items.isEmpty
-                ? Center(
-                    child: Text(
-                      result.incompleteResults
-                          ? '表示できる結果がありません。検索結果が不完全な可能性があります。'
-                          : '一致するリポジトリは見つかりませんでした。',
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scroll,
-                    itemCount: result.items.length,
-                    itemBuilder: (context, index) {
-                      final repository = result.items[index];
-                      return ListTile(
-                        key: ValueKey(repository.key),
-                        onTap: () => _openDetail(repository),
-                        leading: const Icon(Icons.folder_outlined),
-                        title: Text(repository.name),
-                        subtitle: Text(
-                          '${repository.fullName} / ${repository.language ?? '未指定'}',
-                        ),
-                      );
-                    },
-                  ),
+            child: Center(
+              child: Text(
+                incompleteResults
+                    ? '表示できる結果がありません。検索結果が不完全な可能性があります。'
+                    : totalCount == 0
+                    ? '一致するリポジトリは見つかりませんでした。'
+                    : 'このページには表示できるリポジトリがありません。',
+              ),
+            ),
           ),
         ],
       ),
+
+      SearchResults(
+        :final items,
+        :final totalCount,
+        :final incompleteResults,
+        :final loadMore,
+      ) =>
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (incompleteResults) const Text('検索結果が不完全な可能性があります。'),
+            Text('表示中：${items.length}件（総件数：$totalCount件）'),
+            if (totalCount > items.length) const Text('検索結果の一部を表示しています。'),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                controller: _scroll,
+                itemCount: items.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == items.length) {
+                    return _loadMoreFooter(loadMore);
+                  }
+
+                  final repository = items[index];
+
+                  return ListTile(
+                    key: ValueKey(repository.key),
+                    onTap: () => _openDetail(repository),
+                    leading: const Icon(Icons.folder_outlined),
+                    title: Text(repository.name),
+                    subtitle: Text(
+                      '${repository.fullName} / ${repository.language ?? '未指定'}',
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
     };
+  }
+
+  String _problemMessage(SearchProblem problem) {
+    return switch (problem) {
+      ApiSearchProblem(:final failure) => failure.safeMessage,
+      UnexpectedSearchProblem() => '検索処理中に問題が発生しました。',
+    };
+  }
+
+  Widget _loadMoreFooter(LoadMoreState loadMore) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: switch (loadMore) {
+        LoadMoreAvailable() => Center(
+          child: OutlinedButton(
+            onPressed: () => unawaited(
+              ref.read(searchControllerProvider.notifier).loadMore(),
+            ),
+            child: const Text('もっと読み込む'),
+          ),
+        ),
+
+        LoadMoreLoading() => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const Text('追加読み込み中…'),
+            TextButton(
+              onPressed: () =>
+                  ref.read(searchControllerProvider.notifier).cancel(),
+              child: const Text('キャンセル'),
+            ),
+          ],
+        ),
+
+        LoadMoreFailure(:final problem) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_problemMessage(problem)),
+            OutlinedButton(
+              onPressed: () => unawaited(
+                ref.read(searchControllerProvider.notifier).retryLoadMore(),
+              ),
+              child: const Text('追加読み込みを再試行'),
+            ),
+          ],
+        ),
+
+        LoadMoreEnd() => const Center(child: Text('これ以上の結果はありません。')),
+      },
+    );
   }
 }

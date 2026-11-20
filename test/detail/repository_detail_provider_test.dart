@@ -41,8 +41,8 @@ void main() {
   test('value-equal keys reuse one request; detail completion preserves search state', () async {
     await container.read(searchControllerProvider.notifier).search('first');
     final searchState =
-        container.read(searchControllerProvider) as SearchSuccess;
-    final summary = searchState.result.items.first;
+        container.read(searchControllerProvider) as SearchResults;
+    final summary = searchState.items.first;
     final provider = repositoryDetailProvider(summary.key);
     final first = container.listen(provider, (_, _) {});
     addTearDown(first.close);
@@ -95,7 +95,7 @@ void main() {
       await container.pump();
       expect(second.read().asData?.value.watcherCount, 0);
       expect(first.read().asError?.error, same(failure));
-      expect(container.read(searchControllerProvider), isA<SearchInitial>());
+      expect(container.read(searchControllerProvider), isA<SearchIdle>());
       expect(searches, 0);
     },
   );
