@@ -4,29 +4,42 @@ import '../../models/repository_models.dart';
 // 検索全体の状態
 sealed class SearchState {
   const SearchState();
+
+  String? get query;
 }
 
 final class SearchIdle extends SearchState {
   const SearchIdle();
+
+  @override
+  String? get query => null;
 }
 
 final class SearchLoading extends SearchState {
   const SearchLoading(this.query);
 
+  @override
   final String query;
 }
 
 final class SearchFailure extends SearchState {
   const SearchFailure(this.query, this.problem);
 
+  @override
   final String query;
   final SearchProblem problem;
 }
 
 final class SearchEmpty extends SearchState {
-  const SearchEmpty({required this.query, required this.incompleteResults});
+  const SearchEmpty({
+    required this.query,
+    required this.totalCount,
+    required this.incompleteResults,
+  });
 
+  @override
   final String query;
+  final int totalCount;
   final bool incompleteResults;
 }
 
@@ -51,6 +64,7 @@ final class SearchResults extends SearchState {
     }
   }
 
+  @override
   final String query;
   final List<RepositorySummary> items;
   final int totalCount;

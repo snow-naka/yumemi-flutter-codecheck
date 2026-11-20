@@ -50,6 +50,7 @@ class SpikeSearchController extends Notifier<SearchState> {
       if (page.items.isEmpty) {
         state = SearchEmpty(
           query: query,
+          totalCount: page.totalCount,
           incompleteResults: page.incompleteResults,
         );
         return;

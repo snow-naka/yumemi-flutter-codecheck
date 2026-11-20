@@ -649,6 +649,43 @@ void main() {
     expect(result.query, 'dart');
     expect(result.items.single.key.id, 10);
   });
+
+  test('T18: 検索結果0件でもメタデータを保持する', () async {
+    // 検索を開始
+    final task = controller.search('flutter');
+
+    expect(container.read(spikeSearchControllerProvider), isA<SearchLoading>());
+
+    // APIは0件の結果とメタデータを返す
+    requests.single.complete(
+      SearchPage(
+        items: const [],
+        totalCount: 100,
+        incompleteResults: true,
+        page: 1,
+        perPage: 30,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await task;
+
+    // 0件専用の状態になる
+    final state = container.read(spikeSearchControllerProvider);
+
+    expect(state, isA<SearchEmpty>());
+
+    final empty = state as SearchEmpty;
+
+    // APIから受け取った情報が失われていない
+    expect(empty.query, 'flutter');
+    expect(empty.totalCount, 100);
+    expect(empty.incompleteResults, isTrue);
+
+    // 余分な検索が発生していない
+    expect(calls, hasLength(1));
+    expect(calls.single.page, 1);
+  });
 }
 
 SearchPage _page({
