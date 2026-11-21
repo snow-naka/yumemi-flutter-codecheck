@@ -12,6 +12,9 @@ import 'github_rate_limit_headers.dart';
 import 'github_rate_limit_policy.dart';
 import 'github_repository_gateway.dart';
 
+import 'dart:io' show TlsException;
+import 'dart:math' show min;
+
 final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
   HttpGitHubRepositoryGateway({
     required http.Client client,
@@ -45,6 +48,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     String query, {
     int page = 1,
     int perPage = 30,
+    bool Function()? isCanceled,
   }) async {
     if (query.trim().isEmpty ||
         page < 1 ||
@@ -63,7 +67,11 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       'per_page': '$perPage',
     });
 
-    final response = await _get(uri, GitHubApiResource.search);
+    final response = await _get(
+      uri,
+      GitHubApiResource.search,
+      isCanceled: isCanceled,
+    );
 
     try {
       final data =
@@ -76,6 +84,17 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       final items = rawItems.map((raw) {
         return _parseSummary(raw as Map<String, dynamic>);
       }).toList();
+
+      // GitHub検索APIは最大1,000件まで取得可能。
+      final start = (page - 1) * perPage;
+      final remainingWithinLimit = 1000 - start;
+
+      // 通常の1ページ上限と、残りの取得可能件数を比較。
+      final maxItems = min(perPage, remainingWithinLimit);
+
+      if (items.length > maxItems) {
+        throw const FormatException('Search result exceeds GitHub limit');
+      }
 
       final link = response.headers.entries
           .where((e) => e.key.toLowerCase() == 'link')
@@ -111,33 +130,128 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     }
   }
 
-  Future<http.Response> _get(Uri uri, GitHubApiResource resource) {
-    // 先行リクエストの完了後に実行する。
-    final result = _requestQueue.then((_) => _getOnce(uri, resource));
+  Future<http.Response> _get(
+    Uri uri,
+    GitHubApiResource resource, {
+    bool Function()? isCanceled,
+  }) {
+    final caller = Completer<http.Response>();
 
-    // エラーが出てもキュー自体は停止させない。
-    // エラーは呼び出し元へそのまま返す。
-    _requestQueue = result.then<void>(
-      (_) {},
-      onError: (Object error, StackTrace stackTrace) {},
-    );
+    _requestQueue = _requestQueue.then((_) async {
+      if (isCanceled?.call() ?? false) {
+        caller.completeError(const QueuedRequestCanceled());
+        return;
+      }
 
-    return result;
+      final abort = Completer<void>();
+
+      final inFlight = _getOnce(uri, resource, abort.future);
+
+      // 呼び出し元へのタイムアウト通知。
+      unawaited(
+        inFlight
+            .timeout(
+              _requestTimeout,
+              onTimeout: () {
+                // 通信自体の中断も要求する。
+                if (!abort.isCompleted) {
+                  abort.complete();
+                }
+
+                throw const ApiFailure(
+                  kind: ApiFailureKind.timeout,
+                  safeMessage: '通信がタイムアウトしました。',
+                );
+              },
+            )
+            .then<void>(
+              (response) {
+                caller.complete(response);
+              },
+              onError: (Object error, StackTrace stackTrace) {
+                caller.completeError(error, stackTrace);
+              },
+            ),
+      );
+
+      // 中断要求を出しただけでは次へ進まない。
+      // 実際のHTTP処理が終了するまで待つ。
+      try {
+        await inFlight;
+      } catch (_) {
+        // エラーは呼び出し元への通知経路で処理する。
+        // キューは次の要求へ進める。
+      }
+    });
+
+    return caller.future;
   }
 
-  Future<http.Response> _getOnce(Uri uri, GitHubApiResource resource) async {
+  Future<http.Response> _getOnce(
+    Uri uri,
+    GitHubApiResource resource,
+    Future<void> abortTrigger,
+  ) async {
     _guard.check(resource, _now().toUtc());
 
     late final http.Response response;
 
     try {
-      response = await _client
-          .get(uri, headers: _headers)
-          .timeout(_requestTimeout);
-    } on TimeoutException {
+      final request = http.AbortableRequest(
+        'GET',
+        uri,
+        abortTrigger: abortTrigger,
+      );
+
+      request.headers.addAll(_headers);
+
+      final streamedResponse = await _client.send(request);
+
+      // 本文の受信完了を待たず、ヘッダーを先に観測する。
+      final headerReceivedAt = _now().toUtc();
+      final receivedHeaders = GitHubRateLimitHeaders.parse(
+        streamedResponse.headers,
+      );
+      _coordinator.observeRetryAfter(
+        statusCode: streamedResponse.statusCode,
+        headers: receivedHeaders,
+        requestedResource: resource,
+        now: headerReceivedAt,
+      );
+
+      if (streamedResponse.statusCode == 200) {
+        _coordinator.observeSuccessfulResponse(
+          statusCode: streamedResponse.statusCode,
+          headers: receivedHeaders,
+          requestedResource: resource,
+          now: headerReceivedAt,
+        );
+      } else if (streamedResponse.statusCode == 403 ||
+          streamedResponse.statusCode == 429) {
+        // 本文なしで判定できるPrimary制限や429を先に記録。
+        final earlyDecision = GitHubRateLimitEvaluator.evaluate(
+          statusCode: streamedResponse.statusCode,
+          headers: receivedHeaders,
+          now: headerReceivedAt,
+        );
+
+        if (earlyDecision.isRateLimited) {
+          _coordinator.apply(
+            decision: earlyDecision,
+            requestedResource: resource,
+            now: headerReceivedAt,
+          );
+        }
+      }
+
+      // ここで本文を読む。中断しても観測済みの制限は残る。
+      response = await http.Response.fromStream(streamedResponse);
+    } on http.RequestAbortedException {
+      rethrow;
+    } on TlsException {
       throw const ApiFailure(
-        kind: ApiFailureKind.timeout,
-        safeMessage: '通信がタイムアウトしました。',
+        kind: ApiFailureKind.network,
+        safeMessage: 'GitHubとの通信に失敗しました。',
       );
     } on http.ClientException {
       throw const ApiFailure(
@@ -149,6 +263,9 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     final observedAt = _now().toUtc();
     final rateHeaders = GitHubRateLimitHeaders.parse(response.headers);
 
+    if (response.statusCode == 200) {
+      _coordinator.recordSuccessfulResponse();
+    }
     if (response.statusCode != 200) {
       final decision = GitHubRateLimitEvaluator.evaluate(
         statusCode: response.statusCode,
@@ -160,6 +277,10 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       _coordinator.apply(
         decision: decision,
         requestedResource: resource,
+        now: observedAt,
+      );
+      _coordinator.recordCompletedRateLimit(
+        decision: decision,
         now: observedAt,
       );
 
@@ -185,13 +306,6 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       );
     }
 
-    _coordinator.observeSuccessfulResponse(
-      statusCode: response.statusCode,
-      headers: rateHeaders,
-      requestedResource: resource,
-      now: observedAt,
-    );
-
     return response;
   }
 
@@ -216,17 +330,33 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
   static RepositorySummary _parseSummary(Map<String, dynamic> item) {
     final owner = item['owner'] as Map<String, dynamic>;
 
+    final id = item['id'] as int;
+    final ownerLogin = owner['login'] as String;
+    final name = item['name'] as String;
+    final avatarUrl = owner['avatar_url'] as String;
+    final language = item['language'] as String?;
+
+    final starCount = item['stargazers_count'] as int;
+    final forkCount = item['forks_count'] as int;
+    final issueCount = item['open_issues_count'] as int;
+
+    // 検索と詳細取得で共通の値検証を行う。
+    if (id <= 0 ||
+        ownerLogin.trim().isEmpty ||
+        name.trim().isEmpty ||
+        starCount < 0 ||
+        forkCount < 0 ||
+        issueCount < 0) {
+      throw const FormatException('Invalid repository summary values');
+    }
+
     return RepositorySummary(
-      key: RepositoryKey(
-        id: item['id'] as int,
-        owner: owner['login'] as String,
-        name: item['name'] as String,
-      ),
-      avatarUrl: owner['avatar_url'] as String,
-      language: item['language'] as String?,
-      starCount: item['stargazers_count'] as int,
-      forkCount: item['forks_count'] as int,
-      openIssueAndPullRequestCount: item['open_issues_count'] as int,
+      key: RepositoryKey(id: id, owner: ownerLogin, name: name),
+      avatarUrl: avatarUrl,
+      language: language,
+      starCount: starCount,
+      forkCount: forkCount,
+      openIssueAndPullRequestCount: issueCount,
     );
   }
 

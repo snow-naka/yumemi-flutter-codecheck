@@ -53,6 +53,7 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     String query, {
     int page = 1,
     int perPage = 30,
+    bool Function()? isCanceled,
   }) async {
     if (page < 1) throw ArgumentError.value(page, 'page');
     if (perPage < 1 || perPage > 100) {

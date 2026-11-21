@@ -53,8 +53,9 @@ class SearchController extends Notifier<SearchState> {
         query,
         page: requestedPage,
         perPage: requestedPerPage,
+        isCanceled: () =>
+            !requestRef.mounted || generation != _requestGeneration,
       );
-
       // 破棄済み・キャンセル済みなら反映しない。
       if (!requestRef.mounted || generation != _requestGeneration) {
         return;
@@ -157,6 +158,8 @@ class SearchController extends Notifier<SearchState> {
         current.query,
         page: requestedPage,
         perPage: current.perPage,
+        isCanceled: () =>
+            !requestRef.mounted || generation != _requestGeneration,
       );
 
       if (!requestRef.mounted || generation != _requestGeneration) {

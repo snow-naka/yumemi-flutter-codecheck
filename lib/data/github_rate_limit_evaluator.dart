@@ -40,11 +40,9 @@ final class GitHubRateLimitEvaluator {
 
     // Primary制限。resetが不明なら解除時刻も不明とする。
     if (headers.remaining == 0) {
-      final reset = headers.resetAt?.toUtc();
-
       return GitHubRateLimitDecision(
         kind: GitHubRateLimitKind.primary,
-        retryAt: reset != null && reset.isAfter(current) ? deadline : null,
+        retryAt: deadline,
       );
     }
 
