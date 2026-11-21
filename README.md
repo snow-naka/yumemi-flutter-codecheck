@@ -38,7 +38,7 @@ A案は、検索・追加読み込み・キャンセルの状態遷移を明示�
 ### 検証状況
 
 - `flutter analyze`：問題なし
-- `flutter test`：全90件成功
+- `flutter test`：全96件成功
 - `git diff --check`：問題なし
 - 初回検索・追加読み込みのControllerテストとWidgetテストを実施
 - 詳細画面との往復、検索状態の維持をテストで確認
@@ -163,7 +163,8 @@ AIを活用して課題に取り組み、重要な設計判断・データの流
 | `SearchLoading` | API失敗・内部例外 | `SearchFailure` |
 | `SearchLoading` | キャンセル | `SearchIdle` |
 | `SearchLoading` | 新しい検索を要求 | 拒否し、現在の検索を維持 |
-| `SearchResults`・`SearchEmpty`・`SearchFailure` | 有効な検索語を送信 | `SearchLoading`へ移行し、以前の表示を解除 |
+| `SearchResults`（追加読み込み中を除く）・`SearchEmpty`・`SearchFailure` | 有効な検索語を送信 | `SearchLoading`へ移行し、以前の表示を解除 |
+| `SearchResults`（追加読み込み中） | 有効な検索語を送信 | 拒否し、追加読み込みを継続 |
 | 初回検索中以外 | 空の検索語を送信 | 現在の状態を維持 |
 
 初回検索失敗後の再試行では、入力欄の編集中の文字列ではなく、失敗時の検索語を使用する。

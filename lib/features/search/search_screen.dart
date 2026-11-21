@@ -39,6 +39,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     if (!_formKey.currentState!.validate()) return;
 
+    // 新規検索では、描画タイミングに関係なく一覧を先頭へ戻す。
+    if (_scroll.hasClients) {
+      _scroll.jumpTo(0);
+    }
+
     unawaited(ref.read(searchControllerProvider.notifier).search(_input.text));
   }
 
@@ -164,8 +169,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (incompleteResults) const Text('検索結果が不完全な可能性があります。'),
-            Text('表示中：${items.length}件（総件数：$totalCount件）'),
-            if (totalCount > items.length) const Text('検索結果の一部を表示しています。'),
+            Text(
+              '表示中：${items.length}件'
+              '（初回検索時の総件数：$totalCount件）',
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(

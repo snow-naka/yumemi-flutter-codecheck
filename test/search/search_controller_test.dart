@@ -238,37 +238,42 @@ void main() {
   test('T08: 追加ページが0件でも取得済み結果を保持', () async {
     final firstTask = controller.search('flutter');
 
+    // 初回は30件要求し、総31件と報告される。
+    expect(calls.single.page, 1);
+    expect(calls.single.perPage, 30);
+
     requests[0].complete(
       _page(
         page: 1,
-        perPage: 100,
-        ids: List.generate(100, (i) => i + 1),
-        totalCount: 101,
+        ids: List.generate(30, (i) => i + 1),
+        totalCount: 31,
         navigation: const NextPage(2),
       ),
     );
+
     await firstTask;
 
     final loadTask = controller.loadMore();
 
     expect(calls.last.page, 2);
-    expect(calls.last.perPage, 100);
+    expect(calls.last.perPage, 30);
 
+    // 検索結果が変動し、2ページ目は0件になる。
     requests[1].complete(
       _page(
         page: 2,
-        perPage: 100,
         ids: [],
-        totalCount: 99,
+        totalCount: 29,
         navigation: const PageEnd(SearchEndReason.exhausted),
       ),
     );
+
     await loadTask;
 
     final result = container.read(searchControllerProvider) as SearchResults;
 
-    expect(result.items, hasLength(100));
-    expect(result.totalCount, 101);
+    expect(result.items, hasLength(30));
+    expect(result.totalCount, 31);
     expect(result.loadedPage, 2);
     expect(result.loadMore, isA<LoadMoreEnd>());
   });
@@ -725,6 +730,83 @@ void main() {
     // 破棄済みProviderへの更新などで例外終了しない
     await task;
   });
+  test('T22: 無効化直後の古い内部例外はReporterに通知しない', () async {
+    // 検索Aを開始して、応答を保留する。
+    final oldTask = controller.search('flutter');
+
+    expect(requests, hasLength(1));
+
+    // Providerを無効化する。
+    container.invalidate(searchControllerProvider);
+
+    // 重要：
+    // ここではProviderをreadせず、再構築させない。
+
+    // 古い検索Aが想定外例外で完了する。
+    requests.single.completeError(StateError('古い検索の内部エラー'));
+
+    await oldTask;
+
+    // 無効化済みの検索の例外を通知しない。
+    expect(reporter.reports, isEmpty);
+
+    // 再構築後は待機状態。
+    expect(container.read(searchControllerProvider), isA<SearchIdle>());
+  });
+  for (final response in [
+    (name: 'page', page: 2, perPage: 30),
+    (name: 'perPage', page: 1, perPage: 100),
+  ]) {
+    test('T23: 初回応答のページ情報不一致を拒否する (${response.name})', () async {
+      final task = controller.search('flutter');
+
+      // 実際の初回要求は1ページ目・30件。
+      expect(calls.single.page, 1);
+      expect(calls.single.perPage, 30);
+
+      // 要求と異なるページ番号またはページサイズを返す。
+      requests.single.complete(
+        _page(
+          page: response.page,
+          perPage: response.perPage,
+          ids: [1],
+          totalCount: 1,
+          navigation: const PageEnd(SearchEndReason.exhausted),
+        ),
+      );
+
+      await task;
+
+      // 不正な応答を検索成功として扱わない。
+      final state = container.read(searchControllerProvider);
+
+      expect(state, isA<SearchFailure>());
+      expect((state as SearchFailure).problem, isA<UnexpectedSearchProblem>());
+
+      expect(reporter.reports, hasLength(1));
+
+      // 失敗後の再検索は1ページ目から実行できる。
+      final retryTask = controller.search('flutter');
+
+      expect(calls.last.page, 1);
+      expect(calls.last.perPage, 30);
+
+      requests.last.complete(
+        _page(
+          page: 1,
+          ids: [2],
+          totalCount: 1,
+          navigation: const PageEnd(SearchEndReason.exhausted),
+        ),
+      );
+
+      await retryTask;
+
+      final result = container.read(searchControllerProvider) as SearchResults;
+
+      expect(result.items.single.key.id, 2);
+    });
+  }
 }
 
 SearchPage _page({

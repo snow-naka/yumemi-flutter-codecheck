@@ -16,7 +16,15 @@ class SearchController extends Notifier<SearchState> {
   int _requestGeneration = 0;
 
   @override
-  SearchState build() => const SearchIdle();
+  SearchState build() {
+    // Providerの状態が破棄された時点で、
+    // 実行中の古い検索要求を無効化する。
+    ref.onDispose(() {
+      ++_requestGeneration;
+    });
+
+    return const SearchIdle();
+  }
 
   Future<void> search(String input) async {
     // 実行中の新規検索は受け付けない。
@@ -38,11 +46,23 @@ class SearchController extends Notifier<SearchState> {
     state = SearchLoading(query);
 
     try {
-      final page = await gateway.searchRepositories(query);
+      const requestedPage = 1;
+      const requestedPerPage = 30;
+
+      final page = await gateway.searchRepositories(
+        query,
+        page: requestedPage,
+        perPage: requestedPerPage,
+      );
 
       // 破棄済み・キャンセル済みなら反映しない。
       if (!requestRef.mounted || generation != _requestGeneration) {
         return;
+      }
+
+      // 要求と異なるページ情報を持つ応答は採用しない。
+      if (page.page != requestedPage || page.perPage != requestedPerPage) {
+        throw StateError('Unexpected initial search response');
       }
 
       if (page.items.isEmpty) {

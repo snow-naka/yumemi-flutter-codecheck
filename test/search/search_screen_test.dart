@@ -251,7 +251,7 @@ void main() {
     // 既存結果が消えず、再試行ボタンが表示される
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
-    expect(find.text('表示中：2件（総件数：3件）'), findsOneWidget);
+    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
     expect(find.text('テスト用の追加読み込み失敗'), findsOneWidget);
     expect(find.text('追加読み込みを再試行'), findsOneWidget);
 
@@ -280,7 +280,7 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
     expect(find.text('repository-2'), findsOneWidget);
-    expect(find.text('表示中：3件（総件数：3件）'), findsOneWidget);
+    expect(find.text('表示中：3件（初回検索時の総件数：3件）'), findsOneWidget);
     expect(find.text('これ以上の結果はありません。'), findsOneWidget);
   });
   testWidgets('追加読み込みキャンセル後も既存結果を保持し、再取得できる', (tester) async {
@@ -319,7 +319,7 @@ void main() {
     // 既存の結果を維持
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
-    expect(find.text('表示中：2件（総件数：3件）'), findsOneWidget);
+    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
 
     // キャンセル済みのAPIが遅れて成功
     requests[1].complete(
@@ -338,7 +338,7 @@ void main() {
     // 古い応答を採用しない
     expect(find.text('repository-2'), findsNothing);
     expect(find.text('もっと読み込む'), findsOneWidget);
-    expect(find.text('表示中：2件（総件数：3件）'), findsOneWidget);
+    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
 
     // 再び追加読み込みする
     await tester.tap(find.text('もっと読み込む'));
@@ -364,7 +364,7 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
     expect(find.text('repository-2'), findsOneWidget);
-    expect(find.text('表示中：3件（総件数：3件）'), findsOneWidget);
+    expect(find.text('表示中：3件（初回検索時の総件数：3件）'), findsOneWidget);
     expect(find.text('これ以上の結果はありません。'), findsOneWidget);
   });
   testWidgets('初回検索キャンセル後に古い応答を無視して再検索できる', (tester) async {
@@ -405,5 +405,145 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('送信済みの検索語：dart'), findsOneWidget);
     expect(find.text('検索中…'), findsNothing);
+  });
+  testWidgets('追加読み込み後も初回検索時の総件数を区別して表示する', (tester) async {
+    await start(tester);
+    await search(tester, 'flutter');
+
+    // 初回検索：表示2件、総件数3件
+    requests[0].complete(
+      SearchPage(
+        items: resultPage(count: 2).items,
+        totalCount: 3,
+        incompleteResults: false,
+        page: 1,
+        perPage: 30,
+        navigation: const NextPage(2),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+
+    // 追加読み込み
+    await tester.tap(find.text('もっと読み込む'));
+    await tester.pump();
+
+    // 追加取得時点では総件数が5件に増加
+    requests[1].complete(
+      SearchPage(
+        items: resultPage(count: 5).items.skip(2).toList(),
+        totalCount: 5,
+        incompleteResults: false,
+        page: 2,
+        perPage: 30,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await tester.pump();
+
+    // 取得済み5件と初回の総件数3件を区別
+    expect(find.text('表示中：5件（初回検索時の総件数：3件）'), findsOneWidget);
+
+    expect(find.text('検索結果の一部を表示しています。'), findsNothing);
+  });
+  testWidgets('追加読み込み中に総件数が減っても初回値を明示する', (tester) async {
+    await start(tester);
+    await search(tester, 'flutter');
+
+    // 初回：2件取得、総件数3件
+    requests[0].complete(
+      SearchPage(
+        items: resultPage(count: 2).items,
+        totalCount: 3,
+        incompleteResults: false,
+        page: 1,
+        perPage: 30,
+        navigation: const NextPage(2),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+
+    // 追加読み込みを開始
+    await tester.tap(find.text('もっと読み込む'));
+    await tester.pump();
+
+    expect(requests, hasLength(2));
+
+    // 追加取得時には総件数が1件に減少。
+    // 2ページ目には結果が存在しない。
+    requests[1].complete(
+      SearchPage(
+        items: const [],
+        totalCount: 1,
+        incompleteResults: false,
+        page: 2,
+        perPage: 30,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await tester.pump();
+
+    // 取得済みの2件は保持
+    expect(find.text('repository-0'), findsOneWidget);
+    expect(find.text('repository-1'), findsOneWidget);
+
+    // 初回検索時の総件数として3件を表示
+    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+
+    // 追加読み込みは終了
+    expect(find.text('これ以上の結果はありません。'), findsOneWidget);
+  });
+  testWidgets('新規検索が描画前に成功してもスクロール位置をリセットする', (tester) async {
+    await start(tester);
+
+    // 検索A：30件取得
+    await search(tester, 'long');
+
+    requests[0].complete(resultPage(count: 30));
+    await tester.pump();
+
+    // 一覧を途中までスクロール
+    await tester.drag(find.byType(ListView), const Offset(0, -650));
+    await tester.pumpAndSettle();
+
+    final oldOffset = tester
+        .widget<ListView>(find.byType(ListView))
+        .controller!
+        .offset;
+
+    expect(oldOffset, greaterThan(0));
+
+    // 検索Bを開始
+    // 今回はsearch()ヘルパーを使用しない。
+    await tester.enterText(input, 'new');
+    await tester.tap(submit);
+
+    expect(queries, ['long', 'new']);
+
+    // Loading画面をpumpする前にAPI応答を返す
+    requests[1].complete(resultPage(count: 30));
+
+    // 非同期処理を進めるが、画面はまだ描画しない
+    await Future<void>.value();
+
+    // 新しい検索結果を画面へ反映
+    await tester.pump();
+
+    expect(find.text('送信済みの検索語：new'), findsOneWidget);
+
+    // 検索Bの一覧は先頭から表示されるべき
+    final newOffset = tester
+        .widget<ListView>(find.byType(ListView))
+        .controller!
+        .offset;
+
+    expect(newOffset, 0);
   });
 }
