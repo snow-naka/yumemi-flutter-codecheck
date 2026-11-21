@@ -227,7 +227,7 @@ void main() {
     expect(policy.canRequest(GitHubApiResource.search, now), isTrue);
   });
 
-  test('RC12: Resetが過去のPrimaryエラーも暫定停止する', () {
+  test('RC12: 過去のResetを持つPrimaryエラーは60秒停止', () {
     final policy = GitHubRateLimitPolicy();
     final coordinator = GitHubRateLimitCoordinator(policy);
 
@@ -247,7 +247,7 @@ void main() {
 
     expect(
       policy.retryAt(GitHubApiResource.search, now),
-      now.add(const Duration(hours: 1)),
+      now.add(const Duration(minutes: 1)),
     );
   });
 

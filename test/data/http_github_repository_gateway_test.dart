@@ -934,6 +934,8 @@ void main() {
     final firstResponse = Completer<http.Response>();
     var requestCount = 0;
 
+    final policy = GitHubRateLimitPolicy();
+
     final client = MockClient((_) {
       requestCount++;
 
@@ -947,71 +949,105 @@ void main() {
 
     final gateway = HttpGitHubRepositoryGateway(
       client: client,
-      policy: GitHubRateLimitPolicy(),
+      policy: policy,
       now: () => now,
       requestTimeout: const Duration(milliseconds: 50),
     );
 
-    final first = gateway.searchRepositories('flutter');
-    await firstStarted.future;
+    try {
+      // Aを送信し、応答を保留する。
+      final first = gateway.searchRepositories('flutter');
+      await firstStarted.future;
 
-    final second = gateway.searchRepositories('dart');
+      // Aが通信中の間にBをキューへ追加。
+      final second = gateway.searchRepositories('dart');
 
-    final secondAssertion = expectLater(
-      second,
-      throwsA(
-        isA<ApiFailure>().having(
-          (e) => e.kind,
-          'kind',
-          ApiFailureKind.rateLimited,
+      // Aは通信タイムアウト。
+      await expectLater(
+        first,
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.timeout,
+          ),
         ),
-      ),
-    );
+      );
 
-    await expectLater(
-      first,
-      throwsA(
-        isA<ApiFailure>().having((e) => e.kind, 'kind', ApiFailureKind.timeout),
-      ),
-    );
+      // Bもキュー待機中に自分の期限を迎える。
+      await expectLater(
+        second,
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.timeout,
+          ),
+        ),
+      );
 
-    expect(requestCount, 1);
+      // この時点でHTTP送信はAの1回だけ。
+      expect(requestCount, 1);
 
-    // 中断非対応のMockClientが遅れて429を返す。
-    firstResponse.complete(
-      http.Response(
-        '{"message":"Too many requests"}',
-        429,
-        headers: {'retry-after': '120'},
-      ),
-    );
+      // Aの通信が遅れて429を返す。
+      firstResponse.complete(
+        http.Response(
+          '{"message":"Too many requests"}',
+          429,
+          headers: {'retry-after': '120'},
+        ),
+      );
 
-    await secondAssertion;
+      // 新しいCを要求。
+      // Aの429を反映して、HTTP送信前に拒否される。
+      await expectLater(
+        gateway.searchRepositories('riverpod'),
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.rateLimited,
+          ),
+        ),
+      );
 
-    // 後続要求は送信されていない。
-    expect(requestCount, 1);
+      expect(
+        policy.retryAt(GitHubApiResource.search, now),
+        now.add(const Duration(seconds: 120)),
+      );
 
-    client.close();
+      // BもCも実際にはHTTP送信されていない。
+      expect(requestCount, 1);
+    } finally {
+      if (!firstResponse.isCompleted) {
+        firstResponse.complete(http.Response(jsonEncode(payload()), 200));
+      }
+
+      client.close();
+    }
   });
 
   test('HG25: 中断成功後にキューが復帰する', () async {
     final firstStarted = Completer<void>();
     final abortObserved = Completer<void>();
-    var requestCount = 0;
+    final allowAbortCompletion = Completer<void>();
+    final sentQueries = <String>[];
 
     final client = MockClient.streaming((request, bodyStream) async {
-      requestCount++;
+      final query = request.url.queryParameters['q']!;
+      sentQueries.add(query);
 
-      if (requestCount == 1) {
-        expect(request, isA<http.AbortableRequest>());
-
+      if (query == 'flutter') {
         final abortable = request as http.AbortableRequest;
 
         firstStarted.complete();
 
-        // HTTPクライアントが中断に応答する状況を模擬。
+        // Aがタイムアウトし、中断要求を受けるまで待つ。
         await abortable.abortTrigger!;
         abortObserved.complete();
+
+        // 中断処理がまだ完了していない状態を維持する。
+        await allowAbortCompletion.future;
 
         throw http.RequestAbortedException(request.url);
       }
@@ -1026,63 +1062,92 @@ void main() {
       client: client,
       policy: GitHubRateLimitPolicy(),
       now: () => now,
-      requestTimeout: const Duration(milliseconds: 50),
+      requestTimeout: const Duration(milliseconds: 500),
     );
 
-    final first = gateway.searchRepositories('flutter');
+    try {
+      // Aを送信する。
+      final first = gateway.searchRepositories('flutter');
 
-    await firstStarted.future.timeout(const Duration(seconds: 2));
+      // タイムアウトを早めに捕捉する。
+      final firstAssertion = expectLater(
+        first,
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.timeout,
+          ),
+        ),
+      );
 
-    final second = gateway.searchRepositories('dart');
+      await firstStarted.future.timeout(const Duration(seconds: 2));
 
-    await expectLater(
-      first,
-      throwsA(
-        isA<ApiFailure>().having((e) => e.kind, 'kind', ApiFailureKind.timeout),
-      ),
-    );
+      // Aがタイムアウトしたことを確認。
+      await firstAssertion;
 
-    await abortObserved.future.timeout(const Duration(seconds: 2));
+      // HTTPクライアントが中断要求を受け取った。
+      await abortObserved.future.timeout(const Duration(seconds: 2));
 
-    final result = await second.timeout(const Duration(seconds: 2));
+      // Aの中断処理はまだ完了させない。
+      // ここでBをキューへ追加する。
+      final second = gateway.searchRepositories('dart');
 
-    expect(result.items.single.fullName, 'sample/example');
-    expect(requestCount, 2);
+      final secondOutcome = second.then<Object>(
+        (result) => result,
+        onError: (Object error, StackTrace stack) => error,
+      );
 
-    client.close();
+      await Future<void>.delayed(Duration.zero);
+
+      // Aの中断完了前にBを送信してはいけない。
+      expect(sentQueries, ['flutter']);
+
+      // Aの中断を完了させ、キューを進める。
+      allowAbortCompletion.complete();
+
+      final result = await secondOutcome.timeout(const Duration(seconds: 2));
+
+      expect(result, isA<SearchPage>());
+      expect((result as SearchPage).items.single.fullName, 'sample/example');
+
+      // 中断確認後、Bが正常に送信された。
+      expect(sentQueries, ['flutter', 'dart']);
+    } finally {
+      if (!allowAbortCompletion.isCompleted) {
+        allowAbortCompletion.complete();
+      }
+
+      client.close();
+    }
   });
 
   test('HG26: ヘッダー受信後のタイムアウトでも429を保持', () async {
     final firstStarted = Completer<void>();
     final abortObserved = Completer<void>();
     var requestCount = 0;
+
     final policy = GitHubRateLimitPolicy();
 
     final client = MockClient.streaming((request, bodyStream) async {
       requestCount++;
 
-      if (requestCount == 1) {
-        final abortable = request as http.AbortableRequest;
+      final abortable = request as http.AbortableRequest;
 
-        // ヘッダーは受信済み。本文だけ完了していない状態。
-        Stream<List<int>> pendingBody() async* {
-          await abortable.abortTrigger!;
-          abortObserved.complete();
-          throw http.RequestAbortedException(request.url);
-        }
+      // 429ヘッダーは返すが、本文は中断まで完了しない。
+      Stream<List<int>> pendingBody() async* {
+        await abortable.abortTrigger!;
+        abortObserved.complete();
 
-        firstStarted.complete();
-
-        return http.StreamedResponse(
-          pendingBody(),
-          429,
-          headers: {'retry-after': '120'},
-        );
+        throw http.RequestAbortedException(request.url);
       }
 
+      firstStarted.complete();
+
       return http.StreamedResponse(
-        Stream.value(utf8.encode(jsonEncode(payload()))),
-        200,
+        pendingBody(),
+        429,
+        headers: {'retry-after': '120'},
       );
     });
 
@@ -1098,13 +1163,7 @@ void main() {
 
       await firstStarted.future.timeout(const Duration(seconds: 2));
 
-      final second = gateway.searchRepositories('dart');
-
-      final secondOutcome = second.then<Object>(
-        (result) => result,
-        onError: (Object error, StackTrace stack) => error,
-      );
-
+      // 呼び出し元にはタイムアウトを通知する。
       await expectLater(
         first,
         throwsA(
@@ -1116,23 +1175,17 @@ void main() {
         ),
       );
 
+      // 本文の中断を確認する。
       await abortObserved.future.timeout(const Duration(seconds: 2));
 
-      final outcome = await secondOutcome.timeout(const Duration(seconds: 2));
-
-      expect(
-        outcome,
-        isA<ApiFailure>().having(
-          (e) => e.kind,
-          'kind',
-          ApiFailureKind.rateLimited,
-        ),
-      );
-
+      // 本文が完了していなくても、
+      // 受信済み429ヘッダーの制限は保持される。
       expect(
         policy.retryAt(GitHubApiResource.search, now),
         now.add(const Duration(seconds: 120)),
       );
+
+      expect(policy.canRequest(GitHubApiResource.search, now), isFalse);
 
       expect(requestCount, 1);
     } finally {
@@ -1935,6 +1988,518 @@ void main() {
       expect(detail.summary.language, isNull);
       expect(detail.summary.starCount, 0);
       expect(detail.watcherCount, 0);
+    } finally {
+      client.close();
+    }
+  });
+
+  test('HG42: Reset経過後の本文完了で停止期間を延長しない', () async {
+    var current = now;
+    var requestCount = 0;
+
+    final bodyStarted = Completer<void>();
+    final releaseBody = Completer<void>();
+
+    final policy = GitHubRateLimitPolicy();
+    final reset = now.add(const Duration(seconds: 1));
+
+    final client = MockClient.streaming((request, bodyStream) async {
+      requestCount++;
+
+      if (requestCount == 1) {
+        // ヘッダーは即座に返すが、本文の完了は保留する。
+        Stream<List<int>> delayedBody() async* {
+          bodyStarted.complete();
+          await releaseBody.future;
+
+          yield utf8.encode('{"message":"API rate limit exceeded"}');
+        }
+
+        return http.StreamedResponse(
+          delayedBody(),
+          403,
+          headers: {
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': '${reset.millisecondsSinceEpoch ~/ 1000}',
+          },
+        );
+      }
+
+      return http.StreamedResponse(
+        Stream.value(utf8.encode(jsonEncode(payload()))),
+        200,
+      );
+    });
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: policy,
+      now: () => current,
+    );
+
+    try {
+      final first = gateway.searchRepositories('flutter');
+
+      final firstAssertion = expectLater(
+        first,
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.rateLimited,
+          ),
+        ),
+      );
+
+      // ヘッダーを受信し、本文の途中で停止。
+      await bodyStarted.future.timeout(const Duration(seconds: 2));
+
+      // 本文完了前に、GitHubのReset時刻を経過させる。
+      current = now.add(const Duration(seconds: 2));
+
+      releaseBody.complete();
+      await firstAssertion;
+
+      // Resetはすでに経過しているため、
+      // 新しい60分停止を登録してはいけない。
+      expect(
+        policy.canRequest(GitHubApiResource.search, current),
+        isTrue,
+        reason: 'Reset経過後に余分な停止が追加された',
+      );
+
+      final result = await gateway.searchRepositories('dart');
+
+      expect(result.items.length, 1);
+      expect(requestCount, 2);
+    } finally {
+      if (!releaseBody.isCompleted) {
+        releaseBody.complete();
+      }
+
+      client.close();
+    }
+  });
+
+  test('HG43: 本文受信が遅れてもRetry-Afterを延長しない', () async {
+    var current = now;
+    var requestCount = 0;
+
+    final bodyStarted = Completer<void>();
+    final releaseBody = Completer<void>();
+    final policy = GitHubRateLimitPolicy();
+
+    final client = MockClient.streaming((request, bodyStream) async {
+      requestCount++;
+
+      if (requestCount == 1) {
+        Stream<List<int>> delayedBody() async* {
+          bodyStarted.complete();
+          await releaseBody.future;
+          yield utf8.encode('{"message":"Too many requests"}');
+        }
+
+        return http.StreamedResponse(
+          delayedBody(),
+          429,
+          headers: {'retry-after': '5'},
+        );
+      }
+
+      return http.StreamedResponse(
+        Stream.value(utf8.encode(jsonEncode(payload()))),
+        200,
+      );
+    });
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: policy,
+      now: () => current,
+    );
+
+    try {
+      final first = gateway.searchRepositories('flutter');
+
+      final firstAssertion = expectLater(
+        first,
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.rateLimited,
+          ),
+        ),
+      );
+
+      await bodyStarted.future.timeout(const Duration(seconds: 2));
+
+      // ヘッダー受信から2秒経過したことにする。
+      current = now.add(const Duration(seconds: 2));
+
+      releaseBody.complete();
+      await firstAssertion;
+
+      // T+2秒から5秒ではなく、Tから5秒が期限。
+      final deadline = now.add(const Duration(seconds: 5));
+
+      expect(policy.retryAt(GitHubApiResource.search, current), deadline);
+
+      current = deadline.subtract(const Duration(milliseconds: 1));
+
+      await expectLater(
+        gateway.searchRepositories('dart'),
+        throwsA(isA<ApiFailure>()),
+      );
+
+      expect(requestCount, 1);
+
+      current = deadline;
+
+      final result = await gateway.searchRepositories('dart');
+
+      expect(result.items.length, 1);
+      expect(requestCount, 2);
+    } finally {
+      if (!releaseBody.isCompleted) {
+        releaseBody.complete();
+      }
+      client.close();
+    }
+  });
+
+  test('HG44: 最初から過去のResetでは60分停止しない', () async {
+    var current = now;
+    var requestCount = 0;
+    final policy = GitHubRateLimitPolicy();
+
+    final pastReset = now.subtract(const Duration(seconds: 1));
+
+    final client = MockClient((_) async {
+      requestCount++;
+
+      if (requestCount == 1) {
+        return http.Response(
+          '{"message":"API rate limit exceeded"}',
+          403,
+          headers: {
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': '${pastReset.millisecondsSinceEpoch ~/ 1000}',
+          },
+        );
+      }
+
+      return http.Response(jsonEncode(payload()), 200);
+    });
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: policy,
+      now: () => current,
+    );
+
+    try {
+      await expectLater(
+        gateway.searchRepositories('flutter'),
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.rateLimited,
+          ),
+        ),
+      );
+
+      // 過去のResetが既知なので、暫定停止は60秒。
+      final deadline = now.add(const Duration(seconds: 60));
+
+      expect(policy.retryAt(GitHubApiResource.search, now), deadline);
+
+      // 解除直前には送信しない。
+      current = deadline.subtract(const Duration(milliseconds: 1));
+
+      await expectLater(
+        gateway.searchRepositories('flutter'),
+        throwsA(isA<ApiFailure>()),
+      );
+
+      expect(requestCount, 1);
+
+      // 60秒経過後、利用者の再要求を許可。
+      current = deadline;
+
+      final result = await gateway.searchRepositories('flutter');
+
+      expect(result.items.length, 1);
+      expect(requestCount, 2);
+    } finally {
+      client.close();
+    }
+  });
+
+  test('HG45: キュー待機中の期限切れ要求は送信しない', () async {
+    final firstStarted = Completer<void>();
+    final firstResponse = Completer<http.Response>();
+    final sentQueries = <String>[];
+
+    final client = MockClient((request) {
+      final query = request.url.queryParameters['q']!;
+      sentQueries.add(query);
+
+      if (query == 'alpha') {
+        firstStarted.complete();
+        return firstResponse.future;
+      }
+
+      return Future.value(http.Response(jsonEncode(payload()), 200));
+    });
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      requestTimeout: const Duration(milliseconds: 50),
+    );
+
+    // Aは実際にHTTP送信するが、応答を返さない。
+    final aOutcome = gateway
+        .searchRepositories('alpha')
+        .then<Object>(
+          (result) => result,
+          onError: (Object error, StackTrace stack) => error,
+        );
+
+    final started = firstStarted.future.timeout(const Duration(seconds: 2));
+
+    try {
+      await started;
+
+      // Aが未終了のままBをキューに追加。
+      final bOutcome = gateway
+          .searchRepositories('beta')
+          .then<Object>(
+            (result) => result,
+            onError: (Object error, StackTrace stack) => error,
+          );
+
+      try {
+        // Bも自分の期限内にタイムアウトしなければならない。
+        final bResult = await bOutcome.timeout(
+          const Duration(milliseconds: 500),
+          onTimeout: () => StateError('Bがキュー待機中にタイムアウトしなかった'),
+        );
+
+        expect(
+          bResult,
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.timeout,
+          ),
+        );
+
+        // Aが未終了なので、Bは送信されていない。
+        expect(sentQueries, ['alpha']);
+
+        // ここでAを終了させる。
+        firstResponse.complete(http.Response(jsonEncode(payload()), 200));
+
+        await aOutcome;
+
+        // 期限切れのBを追い越し、新しいCが正常に動く。
+        final cResult = await gateway
+            .searchRepositories('gamma')
+            .timeout(const Duration(seconds: 2));
+
+        expect(cResult.items.length, 1);
+
+        // BはA終了後にも送信してはいけない。
+        expect(sentQueries, ['alpha', 'gamma']);
+      } finally {
+        if (!firstResponse.isCompleted) {
+          firstResponse.complete(http.Response(jsonEncode(payload()), 200));
+        }
+
+        await bOutcome.timeout(const Duration(seconds: 2));
+      }
+    } finally {
+      if (!firstResponse.isCompleted) {
+        firstResponse.complete(http.Response(jsonEncode(payload()), 200));
+      }
+
+      await aOutcome.timeout(const Duration(seconds: 2));
+      client.close();
+    }
+  });
+
+  testWidgets('HG46: キュー待機時間も通信期限に含める', (tester) async {
+    final firstResponse = Completer<http.Response>();
+    final secondResponse = Completer<http.Response>();
+    final sentQueries = <String>[];
+
+    http.Response successResponse() =>
+        http.Response(jsonEncode(payload()), 200);
+
+    final client = MockClient((request) {
+      final query = request.url.queryParameters['q']!;
+      sentQueries.add(query);
+
+      return switch (query) {
+        'alpha' => firstResponse.future,
+        'beta' => secondResponse.future,
+        _ => throw StateError('Unexpected query: $query'),
+      };
+    });
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      requestTimeout: const Duration(milliseconds: 100),
+    );
+
+    final firstOutcome = gateway
+        .searchRepositories('alpha')
+        .then<Object>(
+          (result) => result,
+          onError: (Object error, StackTrace stack) => error,
+        );
+
+    Object? secondResult;
+
+    try {
+      await tester.pump();
+      expect(sentQueries, ['alpha']);
+
+      // Bをキューへ登録。この時点から100msを計測。
+      final secondOutcome = gateway
+          .searchRepositories('beta')
+          .then<Object>(
+            (result) => result,
+            onError: (Object error, StackTrace stack) => error,
+          );
+
+      unawaited(
+        secondOutcome.then<void>((result) {
+          secondResult = result;
+        }),
+      );
+
+      // Bの期限の80%を待機キュー内で消費。
+      await tester.pump(const Duration(milliseconds: 80));
+
+      expect(sentQueries, ['alpha']);
+      expect(secondResult, isNull);
+
+      // Aが終了し、BがHTTP送信を開始。
+      firstResponse.complete(successResponse());
+      await tester.pump();
+
+      expect(sentQueries, ['alpha', 'beta']);
+
+      // Bの残り通信時間は20ms。
+      await tester.pump(const Duration(milliseconds: 19));
+      expect(secondResult, isNull);
+
+      await tester.pump(const Duration(milliseconds: 1));
+
+      expect(
+        secondResult,
+        isA<ApiFailure>().having((e) => e.kind, 'kind', ApiFailureKind.timeout),
+      );
+
+      expect(await firstOutcome, isA<SearchPage>());
+    } finally {
+      // 中断非対応のMockClientを完了させる。
+      if (!firstResponse.isCompleted) {
+        firstResponse.complete(successResponse());
+      }
+      if (!secondResponse.isCompleted) {
+        secondResponse.complete(successResponse());
+      }
+
+      await tester.pump();
+      client.close();
+    }
+  });
+
+  test('HG47: 429本文切断でも連続制限を1回として計上', () async {
+    var current = now;
+    var requestCount = 0;
+    final policy = GitHubRateLimitPolicy();
+
+    final client = MockClient.streaming((request, bodyStream) async {
+      requestCount++;
+
+      if (requestCount == 1) {
+        // 429ヘッダーは届くが本文の受信で失敗。
+        return http.StreamedResponse(
+          Stream<List<int>>.error(
+            http.ClientException('Simulated body disconnect'),
+          ),
+          429,
+        );
+      }
+
+      // 2回目は本文も正常に受信できる429。
+      return http.StreamedResponse(
+        Stream.value(utf8.encode('{"message":"Too many requests"}')),
+        429,
+      );
+    });
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: policy,
+      now: () => current,
+    );
+
+    try {
+      // 1回目：本文切断による通信エラー。
+      await expectLater(
+        gateway.searchRepositories('flutter'),
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.network,
+          ),
+        ),
+      );
+
+      // ヘッダーで認識した429によって60秒停止。
+      expect(
+        policy.retryAt(GitHubApiResource.search, now),
+        now.add(const Duration(seconds: 60)),
+      );
+
+      // 61秒経過後、再び429を受信する。
+      current = now.add(const Duration(seconds: 61));
+
+      await expectLater(
+        gateway.searchRepositories('flutter'),
+        throwsA(
+          isA<ApiFailure>().having(
+            (e) => e.kind,
+            'kind',
+            ApiFailureKind.rateLimited,
+          ),
+        ),
+      );
+
+      // 2回目なので、ここから120秒停止する。
+      final expectedDeadline = current.add(const Duration(seconds: 120));
+
+      expect(
+        policy.retryAt(GitHubApiResource.search, current),
+        expectedDeadline,
+      );
+
+      // 共通制限なので詳細取得も停止する。
+      expect(policy.retryAt(GitHubApiResource.core, current), expectedDeadline);
+
+      // ここまでHTTP送信は2回だけ。
+      expect(requestCount, 2);
     } finally {
       client.close();
     }

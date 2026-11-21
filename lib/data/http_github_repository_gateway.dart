@@ -136,51 +136,55 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     bool Function()? isCanceled,
   }) {
     final caller = Completer<http.Response>();
+    final abort = Completer<void>();
 
-    _requestQueue = _requestQueue.then((_) async {
-      if (isCanceled?.call() ?? false) {
-        caller.completeError(const QueuedRequestCanceled());
-        return;
-      }
+    // HTTP通信を実際に開始したか。
+    var started = false;
 
-      final abort = Completer<void>();
+    // キューへの登録時点から期限を計測する。
+    final timer = Timer(_requestTimeout, () {
+      if (caller.isCompleted) return;
 
-      final inFlight = _getOnce(uri, resource, abort.future);
-
-      // 呼び出し元へのタイムアウト通知。
-      unawaited(
-        inFlight
-            .timeout(
-              _requestTimeout,
-              onTimeout: () {
-                // 通信自体の中断も要求する。
-                if (!abort.isCompleted) {
-                  abort.complete();
-                }
-
-                throw const ApiFailure(
-                  kind: ApiFailureKind.timeout,
-                  safeMessage: '通信がタイムアウトしました。',
-                );
-              },
-            )
-            .then<void>(
-              (response) {
-                caller.complete(response);
-              },
-              onError: (Object error, StackTrace stackTrace) {
-                caller.completeError(error, stackTrace);
-              },
-            ),
+      caller.completeError(
+        const ApiFailure(
+          kind: ApiFailureKind.timeout,
+          safeMessage: '通信がタイムアウトしました。',
+        ),
       );
 
-      // 中断要求を出しただけでは次へ進まない。
-      // 実際のHTTP処理が終了するまで待つ。
+      // すでに送信中なら通信の中断を要求する。
+      if (started && !abort.isCompleted) {
+        abort.complete();
+      }
+    });
+
+    _requestQueue = _requestQueue.then((_) async {
       try {
-        await inFlight;
-      } catch (_) {
-        // エラーは呼び出し元への通知経路で処理する。
-        // キューは次の要求へ進める。
+        // キューで待機中に期限が切れていた。
+        // HTTPリクエストを送信しない。
+        if (caller.isCompleted) return;
+
+        // Controllerからキャンセルされていた場合も送信しない。
+        if (isCanceled?.call() ?? false) {
+          caller.completeError(const QueuedRequestCanceled());
+          return;
+        }
+
+        // ここから実際のHTTP処理。
+        started = true;
+
+        final response = await _getOnce(uri, resource, abort.future);
+
+        if (!caller.isCompleted) {
+          caller.complete(response);
+        }
+      } catch (error, stackTrace) {
+        // タイムアウト通知済みなら二重完了しない。
+        if (!caller.isCompleted) {
+          caller.completeError(error, stackTrace);
+        }
+      } finally {
+        timer.cancel();
       }
     });
 
@@ -193,8 +197,10 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     Future<void> abortTrigger,
   ) async {
     _guard.check(resource, _now().toUtc());
-
+    var rateLimitOccurrenceRecorded = false;
     late final http.Response response;
+    late final DateTime headerReceivedAt;
+    late final GitHubRateLimitHeaders receivedHeaders;
 
     try {
       final request = http.AbortableRequest(
@@ -208,10 +214,9 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       final streamedResponse = await _client.send(request);
 
       // 本文の受信完了を待たず、ヘッダーを先に観測する。
-      final headerReceivedAt = _now().toUtc();
-      final receivedHeaders = GitHubRateLimitHeaders.parse(
-        streamedResponse.headers,
-      );
+      headerReceivedAt = _now().toUtc();
+      receivedHeaders = GitHubRateLimitHeaders.parse(streamedResponse.headers);
+
       _coordinator.observeRetryAfter(
         statusCode: streamedResponse.statusCode,
         headers: receivedHeaders,
@@ -241,6 +246,18 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
             requestedResource: resource,
             now: headerReceivedAt,
           );
+
+          // Primaryと判定されない429は、
+          // 本文の成否にかかわらず1回分として記録する。
+          if (streamedResponse.statusCode == 429 &&
+              earlyDecision.kind == GitHubRateLimitKind.unknown429) {
+            _coordinator.recordRateLimitOccurrence(
+              decision: earlyDecision,
+              now: headerReceivedAt,
+            );
+
+            rateLimitOccurrenceRecorded = true;
+          }
         }
       }
 
@@ -260,36 +277,36 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       );
     }
 
-    final observedAt = _now().toUtc();
-    final rateHeaders = GitHubRateLimitHeaders.parse(response.headers);
-
     if (response.statusCode == 200) {
       _coordinator.recordSuccessfulResponse();
     }
     if (response.statusCode != 200) {
       final decision = GitHubRateLimitEvaluator.evaluate(
         statusCode: response.statusCode,
-        headers: rateHeaders,
-        now: observedAt,
+        headers: receivedHeaders,
+        now: headerReceivedAt,
         secondaryLimitIndicated: _secondaryLimitIndicated(response),
       );
 
       _coordinator.apply(
         decision: decision,
         requestedResource: resource,
-        now: observedAt,
+        now: headerReceivedAt,
       );
-      _coordinator.recordCompletedRateLimit(
-        decision: decision,
-        now: observedAt,
-      );
+
+      if (!rateLimitOccurrenceRecorded) {
+        _coordinator.recordRateLimitOccurrence(
+          decision: decision,
+          now: headerReceivedAt,
+        );
+      }
 
       if (decision.isRateLimited) {
         throw ApiFailure(
           kind: ApiFailureKind.rateLimited,
           safeMessage: 'GitHub APIの利用制限中です。',
           httpStatus: response.statusCode,
-          retryAt: _policy.retryAt(resource, observedAt),
+          retryAt: _policy.retryAt(resource, _now().toUtc()),
         );
       }
 

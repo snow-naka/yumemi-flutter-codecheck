@@ -3,10 +3,18 @@ import 'github_rate_limit_headers.dart';
 enum GitHubRateLimitKind { none, primary, secondary, unknown429 }
 
 final class GitHubRateLimitDecision {
-  const GitHubRateLimitDecision({required this.kind, required this.retryAt});
+  const GitHubRateLimitDecision({
+    required this.kind,
+    required this.retryAt,
+    this.primaryResetExpired = false,
+  });
 
   final GitHubRateLimitKind kind;
   final DateTime? retryAt;
+
+  // Primary制限のResetが存在し、
+  // すでに到達・経過している場合にtrue。
+  final bool primaryResetExpired;
 
   bool get isRateLimited => kind != GitHubRateLimitKind.none;
 }
@@ -40,9 +48,12 @@ final class GitHubRateLimitEvaluator {
 
     // Primary制限。resetが不明なら解除時刻も不明とする。
     if (headers.remaining == 0) {
+      final resetAt = headers.resetAt?.toUtc();
+
       return GitHubRateLimitDecision(
         kind: GitHubRateLimitKind.primary,
         retryAt: deadline,
+        primaryResetExpired: resetAt != null && !resetAt.isAfter(current),
       );
     }
 

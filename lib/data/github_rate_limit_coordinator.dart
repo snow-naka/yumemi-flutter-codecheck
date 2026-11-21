@@ -7,13 +7,14 @@ final class GitHubRateLimitCoordinator {
 
   final GitHubRateLimitPolicy policy;
   static const _unknownPrimaryCooldown = Duration(hours: 1);
+  static const _expiredPrimaryResetCooldown = Duration(minutes: 1);
   int _secondaryFailureCount = 0;
   static const _maxSecondaryFailureCount = 7;
   static const _maxSecondaryBackoffSeconds = 3600;
 
   // 403/429の本文受信と制限判定が完了した後、
   // 1つのHTTP応答につき1回だけ呼び出す。
-  void recordCompletedRateLimit({
+  void recordRateLimitOccurrence({
     required GitHubRateLimitDecision decision,
     required DateTime now,
   }) {
@@ -56,10 +57,11 @@ final class GitHubRateLimitCoordinator {
         return;
 
       case GitHubRateLimitKind.primary:
-        // Resetが不明なら60分間の暫定停止。
-        // この日時はGitHubが通知したReset時刻ではない。
-        final until =
-            decision.retryAt ?? now.toUtc().add(_unknownPrimaryCooldown);
+        final fallback = decision.primaryResetExpired
+            ? _expiredPrimaryResetCooldown
+            : _unknownPrimaryCooldown;
+
+        final until = decision.retryAt ?? now.toUtc().add(fallback);
 
         policy.blockResourceUntil(requestedResource, until);
         return;
