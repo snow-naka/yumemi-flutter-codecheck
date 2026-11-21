@@ -16,7 +16,12 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     this.delay = const Duration(milliseconds: 300),
     this.searchHandler,
     this.detailHandler,
-  });
+    List<RepositorySummary>? searchSummaries,
+  }) : _searchSummaries = List<RepositorySummary>.unmodifiable(
+         searchSummaries ?? _summaries,
+       );
+
+  final List<RepositorySummary> _searchSummaries;
 
   final Duration delay;
   // 指定したハンドラーは既定の待機・シナリオを置き換える。
@@ -66,19 +71,46 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     final incomplete = normalized == 'incomplete';
     final matches = normalized.isEmpty || normalized == 'empty'
         ? <RepositorySummary>[]
-        : _summaries
+        : _searchSummaries
               .where(
                 (item) =>
                     incomplete ||
                     item.fullName.toLowerCase().contains(normalized),
               )
               .toList();
+    const maxSearchResults = 1000;
+
+    final accessibleCount = matches.length > maxSearchResults
+        ? maxSearchResults
+        : matches.length;
+
+    final start = (page - 1) * perPage;
+    final remaining = accessibleCount - start;
+
+    final takeCount = remaining <= 0
+        ? 0
+        : (remaining < perPage ? remaining : perPage);
+
+    final items = matches.skip(start).take(takeCount).toList();
+
+    final PageNavigation navigation;
+
+    if (start + items.length < accessibleCount) {
+      navigation = NextPage(page + 1);
+    } else if (matches.length > maxSearchResults &&
+        start + items.length >= maxSearchResults) {
+      navigation = const PageEnd(SearchEndReason.githubLimitReached);
+    } else {
+      navigation = const PageEnd(SearchEndReason.exhausted);
+    }
+
     return SearchPage(
-      items: matches.skip((page - 1) * perPage).take(perPage).toList(),
+      items: items,
       totalCount: matches.length,
       incompleteResults: incomplete,
       page: page,
       perPage: perPage,
+      navigation: navigation,
     );
   }
 

@@ -133,6 +133,7 @@ void main() {
       incompleteResults: false,
       page: 2,
       perPage: 5,
+      navigation: const PageEnd(SearchEndReason.exhausted),
     );
     pending.complete(page);
     expect(await result, same(page));
@@ -168,6 +169,7 @@ void main() {
       incompleteResults: false,
       page: 1,
       perPage: 30,
+      navigation: const PageEnd(SearchEndReason.exhausted),
     );
     items.clear();
     expect(page.items, hasLength(2));
@@ -188,5 +190,166 @@ void main() {
         throwsArgumentError,
       );
     },
+  );
+
+  test('F01: 5件を2件ずつ取得し、最後に終了する', () async {
+    final fake = FakeGitHubRepositoryGateway(
+      delay: Duration.zero,
+      searchSummaries: _buildSearchItems(5),
+    );
+
+    final first = await fake.searchRepositories('sample', page: 1, perPage: 2);
+    final second = await fake.searchRepositories('sample', page: 2, perPage: 2);
+    final third = await fake.searchRepositories('sample', page: 3, perPage: 2);
+
+    expect(first.items, hasLength(2));
+    expect(second.items, hasLength(2));
+    expect(third.items, hasLength(1));
+
+    expect(first.navigation, isA<NextPage>().having((n) => n.page, 'page', 2));
+    expect(second.navigation, isA<NextPage>().having((n) => n.page, 'page', 3));
+    expect(
+      third.navigation,
+      isA<PageEnd>().having(
+        (n) => n.reason,
+        'reason',
+        SearchEndReason.exhausted,
+      ),
+    );
+  });
+
+  test('F04: 1000件ちょうどなら通常の終端になる', () async {
+    final fake = FakeGitHubRepositoryGateway(
+      delay: Duration.zero,
+      searchSummaries: _buildSearchItems(1000),
+    );
+
+    final last = await fake.searchRepositories(
+      'sample',
+      page: 10,
+      perPage: 100,
+    );
+
+    expect(last.totalCount, 1000);
+    expect(last.items, hasLength(100));
+    expect(
+      last.navigation,
+      isA<PageEnd>().having(
+        (n) => n.reason,
+        'reason',
+        SearchEndReason.exhausted,
+      ),
+    );
+  });
+
+  test('F05: 1001件なら1000件の取得上限で終了する', () async {
+    final fake = FakeGitHubRepositoryGateway(
+      delay: Duration.zero,
+      searchSummaries: _buildSearchItems(1001),
+    );
+
+    final last = await fake.searchRepositories(
+      'sample',
+      page: 10,
+      perPage: 100,
+    );
+
+    expect(last.totalCount, 1001);
+    expect(last.items, hasLength(100));
+    expect(
+      last.navigation,
+      isA<PageEnd>().having(
+        (n) => n.reason,
+        'reason',
+        SearchEndReason.githubLimitReached,
+      ),
+    );
+  });
+
+  test('F07: 検索途中で件数が減少し空ページになる', () async {
+    final fake = FakeGitHubRepositoryGateway(
+      delay: Duration.zero,
+      searchHandler: (query, {required page, required perPage}) async {
+        expect(query, 'sample');
+        expect(perPage, 100);
+
+        switch (page) {
+          case 1:
+            return SearchPage(
+              items: _buildSearchItems(100),
+              totalCount: 101,
+              incompleteResults: false,
+              page: 1,
+              perPage: perPage,
+              navigation: const NextPage(2),
+            );
+
+          case 2:
+            // 検索対象が減少したことを模擬する。
+            return SearchPage(
+              items: [],
+              totalCount: 99,
+              incompleteResults: false,
+              page: 2,
+              perPage: perPage,
+              navigation: const PageEnd(SearchEndReason.exhausted),
+            );
+
+          default:
+            throw StateError('Unexpected page: $page');
+        }
+      },
+    );
+
+    // 最初のページは100件取得できる。
+    final first = await fake.searchRepositories(
+      'sample',
+      page: 1,
+      perPage: 100,
+    );
+
+    expect(first.items, hasLength(100));
+    expect(first.totalCount, 101);
+    expect(
+      first.navigation,
+      isA<NextPage>().having((nav) => nav.page, 'next page', 2),
+    );
+
+    // 検索対象が減少した後の2ページ目。
+    final second = await fake.searchRepositories(
+      'sample',
+      page: 2,
+      perPage: 100,
+    );
+
+    expect(second.page, 2);
+    expect(second.items, isEmpty);
+    expect(second.totalCount, 99);
+    expect(
+      second.navigation,
+      isA<PageEnd>().having(
+        (nav) => nav.reason,
+        'end reason',
+        SearchEndReason.exhausted,
+      ),
+    );
+
+    // 先に取得したページの内容は変化しない。
+    expect(first.items, hasLength(100));
+    expect(first.totalCount, 101);
+  });
+}
+
+List<RepositorySummary> _buildSearchItems(int count) {
+  return List.generate(
+    count,
+    (index) => RepositorySummary(
+      key: RepositoryKey(id: index + 1, owner: 'test', name: 'sample-$index'),
+      avatarUrl: '',
+      language: 'Dart',
+      starCount: 0,
+      forkCount: 0,
+      openIssueAndPullRequestCount: 0,
+    ),
   );
 }
