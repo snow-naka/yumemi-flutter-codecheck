@@ -138,11 +138,12 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     final caller = Completer<http.Response>();
     final abort = Completer<void>();
 
-    // HTTP通信を実際に開始したか。
-    var started = false;
+    // キュー登録時から実際に経過した時間を測る。
+    final stopwatch = Stopwatch()..start();
 
-    // キューへの登録時点から期限を計測する。
-    final timer = Timer(_requestTimeout, () {
+    bool isExpired() => stopwatch.elapsed >= _requestTimeout;
+
+    void completeTimeout() {
       if (caller.isCompleted) return;
 
       caller.completeError(
@@ -151,8 +152,16 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
           safeMessage: '通信がタイムアウトしました。',
         ),
       );
+    }
 
-      // すでに送信中なら通信の中断を要求する。
+    var started = false;
+
+    final timer = Timer(_requestTimeout, () {
+      if (caller.isCompleted) return;
+
+      completeTimeout();
+
+      // 送信中の場合だけ中断を要求する。
       if (started && !abort.isCompleted) {
         abort.complete();
       }
@@ -160,31 +169,47 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
 
     _requestQueue = _requestQueue.then((_) async {
       try {
-        // キューで待機中に期限が切れていた。
-        // HTTPリクエストを送信しない。
-        if (caller.isCompleted) return;
+        // タイマー通知が遅れていても、実経過時間で判定。
+        if (caller.isCompleted || isExpired()) {
+          completeTimeout();
+          return;
+        }
 
-        // Controllerからキャンセルされていた場合も送信しない。
         if (isCanceled?.call() ?? false) {
           caller.completeError(const QueuedRequestCanceled());
           return;
         }
 
-        // ここから実際のHTTP処理。
+        // キャンセル判定処理に時間を要した場合にも確認。
+        if (caller.isCompleted || isExpired()) {
+          completeTimeout();
+          return;
+        }
+
         started = true;
 
         final response = await _getOnce(uri, resource, abort.future);
 
         if (!caller.isCompleted) {
-          caller.complete(response);
+          // Timerがまだ発火していなくても、
+          // 期限を過ぎた成功応答を採用しない。
+          if (isExpired()) {
+            completeTimeout();
+          } else {
+            caller.complete(response);
+          }
         }
       } catch (error, stackTrace) {
-        // タイムアウト通知済みなら二重完了しない。
         if (!caller.isCompleted) {
-          caller.completeError(error, stackTrace);
+          if (isExpired()) {
+            completeTimeout();
+          } else {
+            caller.completeError(error, stackTrace);
+          }
         }
       } finally {
         timer.cancel();
+        stopwatch.stop();
       }
     });
 

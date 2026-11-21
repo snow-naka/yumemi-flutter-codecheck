@@ -10,7 +10,7 @@ import 'package:yumemi_app/models/api_failure.dart';
 import 'package:yumemi_app/models/repository_models.dart';
 import 'package:yumemi_app/data/github_repository_gateway.dart';
 
-import 'dart:io' show HandshakeException, CertificateException;
+import 'dart:io' show CertificateException, HandshakeException, sleep;
 
 void main() {
   final now = DateTime.utc(2026, 11, 21, 12);
@@ -2501,6 +2501,84 @@ void main() {
       // ここまでHTTP送信は2回だけ。
       expect(requestCount, 2);
     } finally {
+      client.close();
+    }
+  });
+  test('HG48: タイマー通知前でも期限切れ要求を送信しない', () async {
+    final firstStarted = Completer<void>();
+    final firstResponse = Completer<http.Response>();
+    final sentQueries = <String>[];
+
+    final client = MockClient((request) {
+      final query = request.url.queryParameters['q']!;
+      sentQueries.add(query);
+
+      if (query == 'alpha') {
+        firstStarted.complete();
+        return firstResponse.future;
+      }
+
+      return Future.value(http.Response(jsonEncode(payload()), 200));
+    });
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      requestTimeout: const Duration(milliseconds: 100),
+    );
+
+    final aOutcome = gateway
+        .searchRepositories('alpha')
+        .then<Object>(
+          (value) => value,
+          onError: (Object error, StackTrace stack) => error,
+        );
+
+    try {
+      await firstStarted.future.timeout(const Duration(seconds: 2));
+
+      // Aの実通信中にBをキューへ登録する。
+      final bOutcome = gateway
+          .searchRepositories('beta')
+          .then<Object>(
+            (value) => value,
+            onError: (Object error, StackTrace stack) => error,
+          );
+
+      // イベント処理を意図的に250ms停止する。
+      // この間、Timerのコールバックも実行できない。
+      sleep(const Duration(milliseconds: 250));
+
+      // Timer通知より先にAの完了を通知する。
+      firstResponse.complete(http.Response(jsonEncode(payload()), 200));
+
+      final aResult = await aOutcome.timeout(const Duration(seconds: 2));
+      final bResult = await bOutcome.timeout(const Duration(seconds: 2));
+
+      // Timerが遅れても、実経過時間で期限切れと判断。
+      expect(
+        aResult,
+        isA<ApiFailure>().having((e) => e.kind, 'kind', ApiFailureKind.timeout),
+      );
+
+      expect(
+        bResult,
+        isA<ApiFailure>().having((e) => e.kind, 'kind', ApiFailureKind.timeout),
+      );
+
+      // 期限切れのBを送信していない。
+      expect(sentQueries, ['alpha']);
+
+      // 新しいCは正常に送信できる。
+      final cResult = await gateway.searchRepositories('gamma');
+
+      expect(cResult.items.length, 1);
+      expect(sentQueries, ['alpha', 'gamma']);
+    } finally {
+      if (!firstResponse.isCompleted) {
+        firstResponse.complete(http.Response(jsonEncode(payload()), 200));
+      }
       client.close();
     }
   });
