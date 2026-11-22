@@ -13,6 +13,7 @@ import 'github_rate_limit_guard.dart';
 import 'github_rate_limit_headers.dart';
 import 'github_rate_limit_policy.dart';
 import 'github_repository_gateway.dart';
+import 'github_open_issue_count.dart';
 
 import 'dart:io' show TlsException;
 import 'dart:math' show min;
@@ -526,5 +527,21 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
         policyRetryAt: _policy.retryAt(resource, observedAt),
       ),
     );
+  }
+
+  @override
+  Future<int> getOpenIssueCount(
+    RepositoryKey key, {
+    bool Function()? isCanceled,
+  }) async {
+    final uri = buildOpenIssueCountUri(key);
+
+    final response = await _get(
+      uri,
+      GitHubApiResource.search,
+      isCanceled: isCanceled,
+    );
+
+    return parseOpenIssueCount(response.bodyBytes);
   }
 }

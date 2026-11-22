@@ -3268,6 +3268,186 @@ void main() {
       primaryReset: const Duration(seconds: 5),
     );
   });
+
+  test('HG62: Issue検索は既存のSearch API制限を共有する', () async {
+    var clock = DateTime.utc(2026, 11, 22, 12);
+    final resetAt = clock.add(const Duration(minutes: 2));
+
+    final requests = <Uri>[];
+
+    final client = MockClient((request) async {
+      requests.add(request.url);
+
+      if (request.url.path == '/search/issues') {
+        expect(
+          request.url.queryParameters['q'],
+          'repo:sample/example is:issue is:open',
+        );
+
+        expect(request.url.queryParameters['per_page'], '1');
+
+        return http.Response(
+          '{"total_count":7,"incomplete_results":false,"items":[{"number":1}]}',
+          200,
+          headers: {
+            'x-ratelimit-resource': 'search',
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': '${resetAt.millisecondsSinceEpoch ~/ 1000}',
+          },
+        );
+      }
+
+      if (request.url.path == '/repos/sample/example') {
+        return http.Response('{"message":"Not found"}', 404);
+      }
+
+      if (request.url.path == '/search/repositories') {
+        return http.Response(
+          '{"total_count":0,"incomplete_results":false,"items":[]}',
+          200,
+        );
+      }
+
+      throw StateError('Unexpected request: ${request.url}');
+    });
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => clock,
+    );
+
+    const key = RepositoryKey(id: 1, owner: 'sample', name: 'example');
+
+    // 1. Gateway生成だけではAPI通信しない。
+    expect(requests, isEmpty);
+
+    // 2. 明示的なIssue検索で1回送信。
+    final count = await gateway.getOpenIssueCount(key);
+
+    expect(count, 7);
+    expect(requests, hasLength(1));
+    expect(requests.single.path, '/search/issues');
+
+    // 3. Issue検索でSearch枠が0になったので、
+    //    通常のリポジトリ検索も送信前に停止する。
+    await expectLater(
+      gateway.searchRepositories('flutter'),
+      throwsA(
+        isA<ApiFailure>()
+            .having((e) => e.kind, 'kind', ApiFailureKind.rateLimited)
+            .having((e) => e.retryAt, 'retryAt', resetAt),
+      ),
+    );
+
+    expect(requests, hasLength(1));
+
+    // 4. Search枠が停止しても詳細取得のCore枠は使用可能。
+    await expectLater(
+      gateway.getRepository(key),
+      throwsA(
+        isA<ApiFailure>().having(
+          (e) => e.kind,
+          'kind',
+          ApiFailureKind.notFoundOrUnavailable,
+        ),
+      ),
+    );
+
+    expect(requests, hasLength(2));
+
+    // 5. Resetに到達すれば通常検索を再開できる。
+    clock = resetAt;
+
+    final result = await gateway.searchRepositories('flutter');
+
+    expect(result.items, isEmpty);
+    expect(requests, hasLength(3));
+  });
+
+  test('HG63: キュー待機中にキャンセルされたIssue検索は送信しない', () async {
+    final firstRequestStarted = Completer<void>();
+    final firstResponse = Completer<http.Response>();
+
+    final sentPaths = <String>[];
+
+    final client = MockClient((request) async {
+      sentPaths.add(request.url.path);
+
+      if (request.url.path == '/search/repositories') {
+        firstRequestStarted.complete();
+
+        // 先行要求の応答を意図的に保留する。
+        return firstResponse.future;
+      }
+
+      if (request.url.path == '/search/issues') {
+        return http.Response(
+          '{"total_count":7,"incomplete_results":false,"items":[]}',
+          200,
+        );
+      }
+
+      throw StateError('Unexpected request: ${request.url}');
+    });
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => DateTime.utc(2026, 11, 22, 12),
+    );
+
+    const key = RepositoryKey(id: 1, owner: 'sample', name: 'example');
+
+    // 1. 最初の検索要求を送信し、応答待ちにする。
+    final searchFuture = gateway.searchRepositories('flutter');
+
+    await firstRequestStarted.future;
+
+    expect(sentPaths, ['/search/repositories']);
+
+    // 2. Issue検索を要求。先行要求が未完了なのでキューで待機。
+    var canceled = false;
+
+    final issueFuture = gateway.getOpenIssueCount(
+      key,
+      isCanceled: () => canceled,
+    );
+
+    // 期待するキャンセル例外を先に監視する。
+    final canceledExpectation = expectLater(
+      issueFuture,
+      throwsA(isA<QueuedRequestCanceled>()),
+    );
+
+    // キュー処理が進む機会を与える。
+    await Future<void>.delayed(Duration.zero);
+
+    // まだIssue検索は送信されていない。
+    expect(sentPaths, ['/search/repositories']);
+
+    // 3. 画面を閉じた状態を模擬する。
+    canceled = true;
+
+    // 4. 先行する検索を完了する。
+    firstResponse.complete(
+      http.Response(
+        '{"total_count":0,"incomplete_results":false,"items":[]}',
+        200,
+      ),
+    );
+
+    final searchResult = await searchFuture;
+    expect(searchResult.items, isEmpty);
+
+    // 5. Issue検索は送信前にキャンセルされる。
+    await canceledExpectation;
+
+    // 実際のHTTP送信は最初の検索だけ。
+    expect(sentPaths, ['/search/repositories']);
+  });
 }
 
 final class _ThrowingDiagnosticsSink implements ApiDiagnosticsSink {

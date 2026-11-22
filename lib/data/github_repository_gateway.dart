@@ -15,4 +15,9 @@ abstract interface class GitHubRepositoryGateway {
   });
 
   Future<RepositoryDetail> getRepository(RepositoryKey key);
+  // 利用者が明示的に要求したときだけ呼び出す。
+  Future<int> getOpenIssueCount(
+    RepositoryKey key, {
+    bool Function()? isCanceled,
+  });
 }
