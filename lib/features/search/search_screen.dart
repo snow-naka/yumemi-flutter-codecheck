@@ -267,8 +267,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ],
         ),
-
-        LoadMoreEnd() => const Center(child: Text('これ以上の結果はありません。')),
+        LoadMoreEnd(:final reason) => Center(
+          child: Text(switch (reason) {
+            SearchEndReason.githubLimitReached =>
+              'GitHub検索APIの取得上限（1,000件）に達しました。',
+            SearchEndReason.exhausted => 'これ以上の結果はありません。',
+          }),
+        ),
       },
     );
   }
