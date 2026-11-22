@@ -539,6 +539,10 @@ void main() {
 
     // 3. Issue検索を要求する。まだ送信はできない。
     await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    expect(
+      find.text('Issue数の取得中に問題が発生しました。', skipOffstage: false),
+      findsNothing,
+    );
     await tester.pump();
 
     expect(sentPaths, ['/search/repositories']);
@@ -572,6 +576,68 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(sentPaths, ['/search/repositories']);
+  });
+
+  testWidgets('IC08: Issue＋PR数は詳細取得中・失敗中も保持し成功後に更新', (tester) async {
+    final container = await start(tester);
+
+    final state = container.read(searchControllerProvider) as SearchResults;
+
+    final summary = state.items.first;
+
+    // 検索結果から得た件数は7。
+    expect(summary.openIssueAndPullRequestCount, 7);
+
+    await open(tester);
+
+    // 1. 詳細取得中も検索概要の件数を表示する。
+    expect(find.text('Open Issue＋PR数：7'), findsOneWidget);
+    expect(find.text('詳細情報を取得中…'), findsOneWidget);
+    expect(issueKeys, isEmpty);
+
+    // 2. 詳細取得に失敗しても7件を維持する。
+    requests.single.completeError(
+      const ApiFailure(
+        kind: ApiFailureKind.network,
+        safeMessage: 'detail failed',
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('detail failed'), findsOneWidget);
+    expect(find.text('Open Issue＋PR数：7'), findsOneWidget);
+    expect(issueKeys, isEmpty);
+
+    // 3. 詳細情報を手動で再取得する。
+    await tester.tap(find.text('再試行'));
+    await tester.pump();
+
+    expect(requests, hasLength(2));
+    expect(find.text('Open Issue＋PR数：7'), findsOneWidget);
+
+    // 4. 詳細APIから新しい件数9を受信する。
+    final updatedSummary = RepositorySummary(
+      key: summary.key,
+      avatarUrl: summary.avatarUrl,
+      language: summary.language,
+      starCount: summary.starCount,
+      forkCount: summary.forkCount,
+      openIssueAndPullRequestCount: 9,
+    );
+
+    requests.last.complete(
+      RepositoryDetail(summary: updatedSummary, watcherCount: 8),
+    );
+
+    await tester.pump();
+
+    expect(find.text('Open Issue＋PR数：9'), findsOneWidget);
+    expect(find.text('Open Issue＋PR数：7'), findsNothing);
+
+    // この一連の処理ではIssue検索APIを使用しない。
+    expect(issueKeys, isEmpty);
+    expect(container.read(searchControllerProvider), same(state));
   });
 }
 

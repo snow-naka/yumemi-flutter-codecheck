@@ -142,7 +142,7 @@ class _OpenIssueCountSectionState
         _loading = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || _routePopped) return;
 
       setState(() {
         _error = 'Issue数の取得中に問題が発生しました。';

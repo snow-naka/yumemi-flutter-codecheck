@@ -50,7 +50,7 @@ Debugビルドでは、検索画面から「API通信インスペクター」を
 ### 検証状況
 
 - `flutter analyze`：問題なし
-- `flutter test`：全217件成功
+- `flutter test`：全218件成功
 - `git diff --check`：問題なし
 - Fake Gateway・Mock HTTP Clientを用いたController・Widget・HTTP Gateway・レート制限・診断機能の自動テストを実施
 - Androidエミュレーターで、実際のGitHub APIによる検索・追加読み込み・詳細取得・検索結果0件の動作を確認
@@ -229,7 +229,7 @@ Issue検索はリポジトリ検索とSearch APIの利用枠を共有する。�
 | --- | --- | --- |
 | 識別情報（`RepositoryKey`） | ID・owner・name | 選択した対象を識別し、詳細取得へ渡す |
 | 概要（`RepositorySummary`） | 識別情報、名前、オーナーアイコンURL、言語、Star数、Fork数など | 検索応答から得る情報。Watcher数の取得済みを前提にしない |
-| 詳細（`RepositoryDetail`） | 概要データとWatcher数等の追加情報 | 詳細応答から得る。Issue数の定義は実通信前に決める |
+| 詳細（`RepositoryDetail`） | 概要データとWatcher数等の追加情報 | 詳細応答から得る。Issue数の定義と追加取得の方針は「Issue数の表示と追加取得」を参照 |
 | API検索応答（`SearchPage`） | `items`・`totalCount`・`incompleteResults`・`page`・`perPage`・`navigation` | Gatewayが返す1ページ分の検索結果。通信失敗とは区別し、総件数や次ページ情報を保持する |
 | 検索入力 | 入力欄の編集中の文字列 | 送信済みの検索語と分け、入力途中で表示結果の意味が変わらないようにする |
 | 検索状態（`SearchState`） | `SearchIdle`・`SearchLoading`・`SearchFailure`・`SearchEmpty`・`SearchResults` | 5種類の状態型で検索全体を管理し、取得中・失敗・0件・結果ありを区別する |
