@@ -323,6 +323,14 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
             rateLimitOccurrenceRecorded = true;
           }
         }
+      } else {
+        // HTTPステータスに関係なく、受信済みの残数0を反映する。
+        // 本文受信が途中で失敗しても停止状態を維持する。
+        _coordinator.observePrimaryExhaustion(
+          headers: receivedHeaders,
+          requestedResource: resource,
+          now: headerReceivedAt,
+        );
       }
 
       // ここで本文を読む。中断しても観測済みの制限は残る。
@@ -367,15 +375,6 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       if (!rateLimitOccurrenceRecorded) {
         _coordinator.recordRateLimitOccurrence(
           decision: decision,
-          now: headerReceivedAt,
-        );
-      }
-
-      // 404・422はエラー分類を変えず、Primary残数だけ反映する。
-      if (response.statusCode == 404 || response.statusCode == 422) {
-        _coordinator.observePrimaryExhaustion(
-          headers: receivedHeaders,
-          requestedResource: resource,
           now: headerReceivedAt,
         );
       }

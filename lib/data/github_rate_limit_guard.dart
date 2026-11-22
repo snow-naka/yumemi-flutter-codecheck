@@ -18,8 +18,8 @@ final class GitHubRateLimitGuard {
     throw ApiFailure(
       kind: ApiFailureKind.rateLimited,
       safeMessage: until == null
-          ? 'GitHub APIの利用制限中です。再試行可能な時刻を確認できません。'
-          : 'GitHub APIの利用制限中です。時間をおいて再試行してください。',
+          ? 'GitHubへの送信を一時停止しています。再試行可能な時刻は不明です。'
+          : 'GitHubへの送信を一時停止しています。時間をおいて再試行してください。',
       retryAt: until,
     );
   }
