@@ -2627,11 +2627,19 @@ void main() {
     // D02ではJSON本文は保存しない。
     expect(event.responsePreview, isNull);
   });
-  test('HG50: 本文切断後も受信済み429ヘッダーを診断記録', () async {
+
+  test('HG50: 本文切断後も429の停止期限を診断し再送を拒否', () async {
     final diagnostics = InMemoryApiDiagnostics();
     addTearDown(diagnostics.dispose);
 
+    final policy = GitHubRateLimitPolicy();
+    final expectedRetryAt = now.toUtc().add(const Duration(seconds: 120));
+
+    var requestCount = 0;
+
     final client = MockClient.streaming((request, bodyStream) async {
+      requestCount++;
+
       return http.StreamedResponse(
         Stream<List<int>>.error(http.ClientException('Simulated body failure')),
         429,
@@ -2642,11 +2650,12 @@ void main() {
 
     final gateway = HttpGitHubRepositoryGateway(
       client: client,
-      policy: GitHubRateLimitPolicy(),
+      policy: policy,
       now: () => now,
       diagnostics: diagnostics,
     );
 
+    // 1. 初回はHTTP送信後、本文受信エラーで失敗する。
     await expectLater(
       gateway.searchRepositories('flutter'),
       throwsA(
@@ -2654,14 +2663,50 @@ void main() {
       ),
     );
 
-    expect(diagnostics.value.length, 1);
+    expect(requestCount, 1);
 
-    final event = diagnostics.value.single;
+    // 2. HTTP応答とアプリ側の停止期限が別々に記録される。
+    expect(diagnostics.value, hasLength(2));
 
-    expect(event.httpStatus, 429);
-    expect(event.retryAfter, const Duration(seconds: 120));
-    expect(event.outcome, ApiDiagnosticOutcome.response);
+    final responseEvent = diagnostics.value[0];
+
+    expect(responseEvent.operation, ApiDiagnosticOperation.search);
+    expect(responseEvent.outcome, ApiDiagnosticOutcome.response);
+    expect(responseEvent.httpStatus, 429);
+    expect(responseEvent.retryAfter, const Duration(seconds: 120));
+
+    final policyEvent = diagnostics.value[1];
+
+    expect(
+      policyEvent.outcome,
+      ApiDiagnosticOutcome.policyBlockedAfterResponse,
+    );
+    expect(policyEvent.httpStatus, isNull);
+    expect(policyEvent.policyRetryAt, expectedRetryAt);
+
+    // 3. 直後の再検索は送信前に拒否する。
+    await expectLater(
+      gateway.searchRepositories('flutter'),
+      throwsA(
+        isA<ApiFailure>()
+            .having((e) => e.kind, 'kind', ApiFailureKind.rateLimited)
+            .having((e) => e.retryAt, 'retryAt', expectedRetryAt),
+      ),
+    );
+
+    // 実際のHTTP送信は1回のまま。
+    expect(requestCount, 1);
+
+    // 4. 送信前の拒否も独立した診断記録として残る。
+    expect(diagnostics.value, hasLength(3));
+
+    final blockedEvent = diagnostics.value[2];
+
+    expect(blockedEvent.outcome, ApiDiagnosticOutcome.blockedByRateLimit);
+    expect(blockedEvent.httpStatus, isNull);
+    expect(blockedEvent.policyRetryAt, expectedRetryAt);
   });
+
   test('HG51: 診断Sinkの失敗はHTTP検索に影響しない', () async {
     final client = MockClient(
       (_) async => http.Response(jsonEncode(payload()), 200),
@@ -2854,6 +2899,137 @@ void main() {
     );
     expect(policyEvent.policyRetryAt, reset);
   });
+  test('HG55: 404で残数0なら詳細枠だけをResetまで停止', () async {
+    await verifyPrimaryExhaustionOnHttpError(
+      statusCode: 404,
+      expectedKind: ApiFailureKind.notFoundOrUnavailable,
+    );
+  });
+
+  test('HG56: 422で残数0なら詳細枠だけをResetまで停止', () async {
+    await verifyPrimaryExhaustionOnHttpError(
+      statusCode: 422,
+      expectedKind: ApiFailureKind.invalidRequest,
+    );
+  });
+
+  test('HG57: 503のRetry-Afterを守り、serverErrorを維持する', () async {
+    var now = DateTime.utc(2026, 11, 22, 12);
+    final retryAt = now.add(const Duration(seconds: 120));
+
+    var searchRequestCount = 0;
+    var detailRequestCount = 0;
+
+    final diagnostics = InMemoryApiDiagnostics();
+    addTearDown(diagnostics.dispose);
+
+    final client = MockClient((request) async {
+      if (request.url.path == '/search/repositories') {
+        searchRequestCount++;
+
+        if (searchRequestCount == 1) {
+          return http.Response(
+            '{"message":"Service unavailable"}',
+            503,
+            headers: {'retry-after': '120'},
+          );
+        }
+
+        return http.Response(
+          '{"total_count":0,"incomplete_results":false,"items":[]}',
+          200,
+        );
+      }
+
+      if (request.url.path.startsWith('/repos/')) {
+        detailRequestCount++;
+
+        return http.Response('{"message":"Not found"}', 404);
+      }
+
+      throw StateError('Unexpected request: ${request.url}');
+    });
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      diagnostics: diagnostics,
+    );
+
+    // 1. 最初の503はserverErrorとして返す。
+    await expectLater(
+      gateway.searchRepositories('flutter'),
+      throwsA(
+        isA<ApiFailure>()
+            .having(
+              (failure) => failure.kind,
+              'kind',
+              ApiFailureKind.serverError,
+            )
+            .having((failure) => failure.httpStatus, 'httpStatus', 503),
+      ),
+    );
+
+    expect(searchRequestCount, 1);
+
+    // 2. 応答後、アプリが待機状態を記録している。
+    expect(diagnostics.value, hasLength(2));
+
+    expect(diagnostics.value.first.outcome, ApiDiagnosticOutcome.response);
+    expect(diagnostics.value.first.httpStatus, 503);
+
+    final policyEvent = diagnostics.value.last;
+
+    expect(
+      policyEvent.outcome,
+      ApiDiagnosticOutcome.policyBlockedAfterResponse,
+    );
+    expect(policyEvent.policyRetryAt, retryAt);
+
+    // 3. 119秒後は送信を拒否する。
+    now = now.add(const Duration(seconds: 119));
+
+    await expectLater(
+      gateway.searchRepositories('flutter'),
+      throwsA(
+        isA<ApiFailure>()
+            .having(
+              (failure) => failure.kind,
+              'kind',
+              ApiFailureKind.rateLimited,
+            )
+            .having((failure) => failure.retryAt, 'retryAt', retryAt),
+      ),
+    );
+
+    expect(searchRequestCount, 1);
+
+    // 4. 検索の待機中でも詳細APIは送信できる。
+    await expectLater(
+      gateway.getRepository(
+        const RepositoryKey(id: 101, owner: 'sample', name: 'missing'),
+      ),
+      throwsA(
+        isA<ApiFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          ApiFailureKind.notFoundOrUnavailable,
+        ),
+      ),
+    );
+
+    expect(detailRequestCount, 1);
+
+    // 5. 120秒経過したら再び検索を送信できる。
+    now = retryAt;
+
+    final result = await gateway.searchRepositories('flutter');
+
+    expect(result.items, isEmpty);
+    expect(searchRequestCount, 2);
+  });
 }
 
 final class _ThrowingDiagnosticsSink implements ApiDiagnosticsSink {
@@ -2861,4 +3037,116 @@ final class _ThrowingDiagnosticsSink implements ApiDiagnosticsSink {
   void record(ApiDiagnosticEvent event) {
     throw StateError('Simulated diagnostics failure');
   }
+}
+
+Future<void> verifyPrimaryExhaustionOnHttpError({
+  required int statusCode,
+  required ApiFailureKind expectedKind,
+}) async {
+  var now = DateTime.utc(2026, 11, 22, 12);
+  final resetAt = now.add(const Duration(seconds: 120));
+
+  var detailRequestCount = 0;
+  var searchRequestCount = 0;
+
+  final client = MockClient((request) async {
+    if (request.url.path == '/search/repositories') {
+      searchRequestCount++;
+
+      return http.Response(
+        '{"total_count":0,"incomplete_results":false,"items":[]}',
+        200,
+        headers: {
+          'x-ratelimit-resource': 'search',
+          'x-ratelimit-remaining': '5',
+        },
+      );
+    }
+
+    if (request.url.path.startsWith('/repos/')) {
+      detailRequestCount++;
+
+      return http.Response(
+        '{"message":"Repository unavailable"}',
+        statusCode,
+        headers: {
+          'x-ratelimit-resource': 'core',
+
+          // 最初の詳細応答で枠が0になる。
+          // Reset後の詳細応答では残数5に戻す。
+          'x-ratelimit-remaining': detailRequestCount == 1 ? '0' : '5',
+
+          'x-ratelimit-reset': '${resetAt.millisecondsSinceEpoch ~/ 1000}',
+        },
+      );
+    }
+
+    throw StateError('Unexpected request: ${request.url}');
+  });
+  addTearDown(client.close);
+
+  final gateway = HttpGitHubRepositoryGateway(
+    client: client,
+    policy: GitHubRateLimitPolicy(),
+    now: () => now,
+  );
+
+  const firstKey = RepositoryKey(id: 101, owner: 'sample', name: 'missing-a');
+
+  const secondKey = RepositoryKey(id: 102, owner: 'sample', name: 'missing-b');
+
+  // 1. 最初のHTTPエラーは、元のエラー分類を維持する。
+  await expectLater(
+    gateway.getRepository(firstKey),
+    throwsA(
+      isA<ApiFailure>().having((failure) => failure.kind, 'kind', expectedKind),
+    ),
+  );
+
+  expect(detailRequestCount, 1);
+
+  // 2. Resetの119秒後では、別の詳細要求も送信できない。
+  now = now.add(const Duration(seconds: 119));
+
+  await expectLater(
+    gateway.getRepository(secondKey),
+    throwsA(
+      isA<ApiFailure>()
+          .having((failure) => failure.kind, 'kind', ApiFailureKind.rateLimited)
+          .having((failure) => failure.retryAt, 'retryAt', resetAt),
+    ),
+  );
+
+  // HTTP送信数は増えない。
+  expect(detailRequestCount, 1);
+
+  // 3. coreが停止しても、searchの枠は使用できる。
+  final searchResult = await gateway.searchRepositories('flutter');
+
+  expect(searchResult.items, isEmpty);
+  expect(searchRequestCount, 1);
+  expect(detailRequestCount, 1);
+
+  // 4. Reset到達時には詳細要求を再開できる。
+  now = resetAt;
+
+  await expectLater(
+    gateway.getRepository(secondKey),
+    throwsA(
+      isA<ApiFailure>().having((failure) => failure.kind, 'kind', expectedKind),
+    ),
+  );
+
+  // 2回目の詳細HTTP要求が送信された。
+  expect(detailRequestCount, 2);
+
+  // 5. Reset後は残数5なので、続けて詳細要求を送信できる。
+  await expectLater(
+    gateway.getRepository(firstKey),
+    throwsA(
+      isA<ApiFailure>().having((failure) => failure.kind, 'kind', expectedKind),
+    ),
+  );
+
+  expect(detailRequestCount, 3);
 }

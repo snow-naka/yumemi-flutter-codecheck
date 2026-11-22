@@ -326,7 +326,14 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       }
 
       // ここで本文を読む。中断しても観測済みの制限は残る。
-      response = await http.Response.fromStream(streamedResponse);
+      try {
+        response = await http.Response.fromStream(streamedResponse);
+      } catch (_) {
+        // 本文受信が失敗しても、ヘッダーから確定済みの
+        // 送信停止状態を診断履歴へ反映する。
+        _recordPolicyBlockAfterResponse(resource);
+        rethrow;
+      }
     } on http.RequestAbortedException {
       rethrow;
     } on TlsException {
@@ -351,7 +358,6 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
         now: headerReceivedAt,
         secondaryLimitIndicated: _secondaryLimitIndicated(response),
       );
-
       _coordinator.apply(
         decision: decision,
         requestedResource: resource,
@@ -361,6 +367,15 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       if (!rateLimitOccurrenceRecorded) {
         _coordinator.recordRateLimitOccurrence(
           decision: decision,
+          now: headerReceivedAt,
+        );
+      }
+
+      // 404・422はエラー分類を変えず、Primary残数だけ反映する。
+      if (response.statusCode == 404 || response.statusCode == 422) {
+        _coordinator.observePrimaryExhaustion(
+          headers: receivedHeaders,
+          requestedResource: resource,
           now: headerReceivedAt,
         );
       }

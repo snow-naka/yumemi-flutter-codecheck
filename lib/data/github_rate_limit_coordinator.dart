@@ -80,34 +80,49 @@ final class GitHubRateLimitCoordinator {
   }
 
   // 正常応答の残数を見て、次回の要求を予防的に停止する。
+
+  // 正常応答について、従来どおりPrimary残数を観測する。
   void observeSuccessfulResponse({
     required int statusCode,
     required GitHubRateLimitHeaders headers,
     required GitHubApiResource requestedResource,
     required DateTime now,
   }) {
-    // エラー応答は既存のEvaluatorで処理する。
     if (statusCode < 200 || statusCode >= 300) {
       return;
     }
 
-    // 残数が0と確認できた場合だけ制限を登録する。
+    observePrimaryExhaustion(
+      headers: headers,
+      requestedResource: requestedResource,
+      now: now,
+    );
+  }
+
+  // HTTPステータスとは独立して、Primary残数0を送信制御へ反映する。
+  // 404・422など、要求自体が失敗した場合にも使用できる。
+  void observePrimaryExhaustion({
+    required GitHubRateLimitHeaders headers,
+    required GitHubApiResource requestedResource,
+    required DateTime now,
+  }) {
     if (headers.remaining != 0) {
       return;
     }
 
-    final resetAt = headers.resetAt;
+    final current = now.toUtc();
+    final resetAt = headers.resetAt?.toUtc();
 
     if (resetAt == null) {
       policy.blockResourceUntil(
         requestedResource,
-        now.toUtc().add(_unknownPrimaryCooldown),
+        current.add(_unknownPrimaryCooldown),
       );
       return;
     }
 
-    // リセット時刻が既に過ぎていれば、新しい停止は登録しない。
-    if (resetAt.isAfter(now.toUtc())) {
+    // 期限切れのResetでは新しい停止を登録しない。
+    if (resetAt.isAfter(current)) {
       policy.blockResourceUntil(requestedResource, resetAt);
     }
   }
@@ -118,7 +133,7 @@ final class GitHubRateLimitCoordinator {
     required GitHubApiResource requestedResource,
     required DateTime now,
   }) {
-    if (statusCode != 403 && statusCode != 429) {
+    if (statusCode != 403 && statusCode != 429 && statusCode != 503) {
       return;
     }
 
@@ -130,11 +145,17 @@ final class GitHubRateLimitCoordinator {
 
     final until = now.toUtc().add(delay);
 
+    // 503はサーバー側の一時的な利用不能。
+    // Secondary制限と判断せず、要求先のリソースだけ停止する。
+    if (statusCode == 503) {
+      policy.blockResourceUntil(requestedResource, until);
+      return;
+    }
+
+    // 以下は既存の403・429の動作を維持する。
     if (headers.remaining == 0) {
-      // Primary制限の枠が枯渇している場合。
       policy.blockResourceUntil(requestedResource, until);
     } else {
-      // Secondary制限の可能性もあるため共通停止。
       policy.blockAllUntil(until);
     }
   }
