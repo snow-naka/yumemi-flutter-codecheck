@@ -6,12 +6,14 @@ final class GitHubRateLimitHeaders {
     required this.resetAt,
     required this.retryAfter,
     required this.resource,
+    this.limit,
   });
 
   final int? remaining;
   final DateTime? resetAt;
   final Duration? retryAfter;
   final GitHubApiResource? resource;
+  final int? limit;
 
   static GitHubRateLimitHeaders parse(Map<String, String> headers) {
     // HTTPヘッダー名は大文字・小文字を区別しない。
@@ -41,6 +43,8 @@ final class GitHubRateLimitHeaders {
 
     // GitHubが案内する秒数形式を扱う。
     final retrySeconds = int.tryParse(values['retry-after'] ?? '');
+    final rawLimit = int.tryParse(values['x-ratelimit-limit'] ?? '');
+    final limit = rawLimit != null && rawLimit >= 0 ? rawLimit : null;
 
     final retryAfter = retrySeconds != null && retrySeconds >= 0
         ? Duration(seconds: retrySeconds)
@@ -57,6 +61,7 @@ final class GitHubRateLimitHeaders {
       resetAt: resetAt,
       retryAfter: retryAfter,
       resource: resource,
+      limit: limit,
     );
   }
 }

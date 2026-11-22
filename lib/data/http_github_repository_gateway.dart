@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kDebugMode;
 
+import '../devtools/api_diagnostics.dart';
 import '../models/api_failure.dart';
 import '../models/repository_models.dart';
 import 'github_rate_limit_coordinator.dart';
@@ -21,6 +23,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     required GitHubRateLimitPolicy policy,
     DateTime Function()? now,
     Duration? requestTimeout,
+    ApiDiagnosticsSink? diagnostics,
   }) : // client: という公開引数名を維持するため。
        // ignore: prefer_initializing_formals
        _client = client,
@@ -28,6 +31,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
        _now = now ?? DateTime.now,
        _guard = GitHubRateLimitGuard(policy),
        _requestTimeout = requestTimeout ?? const Duration(seconds: 10),
+       _diagnostics = diagnostics ?? const NoopApiDiagnosticsSink(),
        _coordinator = GitHubRateLimitCoordinator(policy);
   final http.Client _client;
   final GitHubRateLimitPolicy _policy;
@@ -35,6 +39,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
   final GitHubRateLimitGuard _guard;
   final GitHubRateLimitCoordinator _coordinator;
   final Duration _requestTimeout;
+  final ApiDiagnosticsSink _diagnostics;
   Future<void> _requestQueue = Future<void>.value();
 
   static const _headers = <String, String>{
@@ -221,7 +226,28 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     GitHubApiResource resource,
     Future<void> abortTrigger,
   ) async {
-    _guard.check(resource, _now().toUtc());
+    final checkedAt = _now().toUtc();
+
+    try {
+      _guard.check(resource, checkedAt);
+    } on ApiFailure catch (failure) {
+      if (failure.kind == ApiFailureKind.rateLimited) {
+        _recordDiagnosticSafely(
+          ApiDiagnosticEvent(
+            recordedAt: checkedAt,
+            operation: resource == GitHubApiResource.search
+                ? ApiDiagnosticOperation.search
+                : ApiDiagnosticOperation.detail,
+            outcome: ApiDiagnosticOutcome.blockedByRateLimit,
+            // HTTPを送信していないのでhttpStatusは設定しない。
+            policyRetryAt: failure.retryAt,
+          ),
+        );
+      }
+
+      rethrow;
+    }
+
     var rateLimitOccurrenceRecorded = false;
     late final http.Response response;
     late final DateTime headerReceivedAt;
@@ -241,7 +267,20 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       // 本文の受信完了を待たず、ヘッダーを先に観測する。
       headerReceivedAt = _now().toUtc();
       receivedHeaders = GitHubRateLimitHeaders.parse(streamedResponse.headers);
-
+      _recordDiagnosticSafely(
+        ApiDiagnosticEvent(
+          recordedAt: headerReceivedAt,
+          operation: resource == GitHubApiResource.search
+              ? ApiDiagnosticOperation.search
+              : ApiDiagnosticOperation.detail,
+          outcome: ApiDiagnosticOutcome.response,
+          httpStatus: streamedResponse.statusCode,
+          rateLimitLimit: receivedHeaders.limit,
+          rateLimitRemaining: receivedHeaders.remaining,
+          rateLimitResetAt: receivedHeaders.resetAt,
+          retryAfter: receivedHeaders.retryAfter,
+        ),
+      );
       _coordinator.observeRetryAfter(
         statusCode: streamedResponse.statusCode,
         headers: receivedHeaders,
@@ -326,6 +365,8 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
         );
       }
 
+      _recordPolicyBlockAfterResponse(resource);
+
       if (decision.isRateLimited) {
         throw ApiFailure(
           kind: ApiFailureKind.rateLimited,
@@ -348,6 +389,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       );
     }
 
+    _recordPolicyBlockAfterResponse(resource);
     return response;
   }
 
@@ -438,5 +480,37 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
         safeMessage: 'GitHub APIの応答形式が不正です。',
       );
     }
+  }
+
+  void _recordDiagnosticSafely(ApiDiagnosticEvent event) {
+    // 開発用診断はdebugビルドだけで動作させる。
+    if (!kDebugMode) return;
+
+    try {
+      _diagnostics.record(event);
+    } catch (_) {
+      // 診断機能の失敗によってHTTP処理を壊さない。
+      // エラーの原文も通常ログへ流さない。
+    }
+  }
+
+  void _recordPolicyBlockAfterResponse(GitHubApiResource resource) {
+    final observedAt = _now().toUtc();
+
+    // 実際に送信可能なら、制限状態の記録は不要。
+    if (_policy.canRequest(resource, observedAt)) {
+      return;
+    }
+
+    _recordDiagnosticSafely(
+      ApiDiagnosticEvent(
+        recordedAt: observedAt,
+        operation: resource == GitHubApiResource.search
+            ? ApiDiagnosticOperation.search
+            : ApiDiagnosticOperation.detail,
+        outcome: ApiDiagnosticOutcome.policyBlockedAfterResponse,
+        policyRetryAt: _policy.retryAt(resource, observedAt),
+      ),
+    );
   }
 }

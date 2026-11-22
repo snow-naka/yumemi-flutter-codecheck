@@ -9,6 +9,7 @@ import 'package:yumemi_app/data/http_github_repository_gateway.dart';
 import 'package:yumemi_app/models/api_failure.dart';
 import 'package:yumemi_app/models/repository_models.dart';
 import 'package:yumemi_app/data/github_repository_gateway.dart';
+import 'package:yumemi_app/devtools/api_diagnostics.dart';
 
 import 'dart:io' show CertificateException, HandshakeException, sleep;
 
@@ -2582,4 +2583,282 @@ void main() {
       client.close();
     }
   });
+  test('HG49: HTTP応答の制限ヘッダーを診断記録する', () async {
+    final diagnostics = InMemoryApiDiagnostics();
+    addTearDown(diagnostics.dispose);
+
+    final reset = now.add(const Duration(minutes: 2));
+
+    final client = MockClient(
+      (_) async => http.Response(
+        jsonEncode(payload()),
+        200,
+        headers: {
+          'x-ratelimit-limit': '10',
+          'x-ratelimit-remaining': '7',
+          'x-ratelimit-reset': '${reset.millisecondsSinceEpoch ~/ 1000}',
+          'x-ratelimit-resource': 'search',
+        },
+      ),
+    );
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      diagnostics: diagnostics,
+    );
+
+    final result = await gateway.searchRepositories('flutter');
+
+    expect(result.items.length, 1);
+    expect(diagnostics.value.length, 1);
+
+    final event = diagnostics.value.single;
+
+    expect(event.operation, ApiDiagnosticOperation.search);
+    expect(event.outcome, ApiDiagnosticOutcome.response);
+    expect(event.httpStatus, 200);
+    expect(event.rateLimitLimit, 10);
+    expect(event.rateLimitRemaining, 7);
+    expect(event.rateLimitResetAt, reset);
+
+    // D02ではJSON本文は保存しない。
+    expect(event.responsePreview, isNull);
+  });
+  test('HG50: 本文切断後も受信済み429ヘッダーを診断記録', () async {
+    final diagnostics = InMemoryApiDiagnostics();
+    addTearDown(diagnostics.dispose);
+
+    final client = MockClient.streaming((request, bodyStream) async {
+      return http.StreamedResponse(
+        Stream<List<int>>.error(http.ClientException('Simulated body failure')),
+        429,
+        headers: {'retry-after': '120'},
+      );
+    });
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      diagnostics: diagnostics,
+    );
+
+    await expectLater(
+      gateway.searchRepositories('flutter'),
+      throwsA(
+        isA<ApiFailure>().having((e) => e.kind, 'kind', ApiFailureKind.network),
+      ),
+    );
+
+    expect(diagnostics.value.length, 1);
+
+    final event = diagnostics.value.single;
+
+    expect(event.httpStatus, 429);
+    expect(event.retryAfter, const Duration(seconds: 120));
+    expect(event.outcome, ApiDiagnosticOutcome.response);
+  });
+  test('HG51: 診断Sinkの失敗はHTTP検索に影響しない', () async {
+    final client = MockClient(
+      (_) async => http.Response(jsonEncode(payload()), 200),
+    );
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      diagnostics: _ThrowingDiagnosticsSink(),
+    );
+
+    final result = await gateway.searchRepositories('flutter');
+
+    expect(result.items.single.fullName, 'sample/example');
+  });
+
+  test('HG52: HTTPの429と送信前の制限を区別して診断記録', () async {
+    final diagnostics = InMemoryApiDiagnostics();
+    addTearDown(diagnostics.dispose);
+
+    final policy = GitHubRateLimitPolicy();
+    var requestCount = 0;
+
+    final client = MockClient((request) async {
+      requestCount++;
+
+      return http.Response(
+        '{"message":"Too many requests"}',
+        429,
+        headers: {'retry-after': '120'},
+      );
+    });
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: policy,
+      now: () => now,
+      diagnostics: diagnostics,
+    );
+
+    // 1回目：実際にGitHubから429が返る状況。
+    await expectLater(
+      gateway.searchRepositories('flutter'),
+      throwsA(
+        isA<ApiFailure>().having(
+          (e) => e.kind,
+          'kind',
+          ApiFailureKind.rateLimited,
+        ),
+      ),
+    );
+
+    expect(requestCount, 1);
+    expect(diagnostics.value, hasLength(2));
+
+    final responseEvent = diagnostics.value[0];
+    final policyEvent = diagnostics.value[1];
+
+    expect(responseEvent.outcome, ApiDiagnosticOutcome.response);
+    expect(responseEvent.httpStatus, 429);
+    expect(responseEvent.retryAfter, const Duration(seconds: 120));
+
+    expect(
+      policyEvent.outcome,
+      ApiDiagnosticOutcome.policyBlockedAfterResponse,
+    );
+    expect(policyEvent.httpStatus, isNull);
+    expect(policyEvent.policyRetryAt, now.add(const Duration(seconds: 120)));
+
+    // 2回目：まだ制限中なのでHTTP送信しない。
+    await expectLater(
+      gateway.searchRepositories('flutter'),
+      throwsA(
+        isA<ApiFailure>().having(
+          (e) => e.kind,
+          'kind',
+          ApiFailureKind.rateLimited,
+        ),
+      ),
+    );
+
+    // HTTP要求は増えていない。
+    expect(requestCount, 1);
+
+    // 診断履歴は2件になる。
+    expect(diagnostics.value, hasLength(3));
+
+    final blockedEvent = diagnostics.value.last;
+
+    expect(blockedEvent.operation, ApiDiagnosticOperation.search);
+    expect(blockedEvent.outcome, ApiDiagnosticOutcome.blockedByRateLimit);
+
+    // HTTP応答がないのでステータスはnull。
+    expect(blockedEvent.httpStatus, isNull);
+
+    // GitHubから通知された待機時間に基づく
+    // アプリ側の送信再開予定時刻。
+    expect(blockedEvent.policyRetryAt, now.add(const Duration(seconds: 120)));
+  });
+
+  test('HG53: 429応答後のPolicy期限を診断記録する', () async {
+    final diagnostics = InMemoryApiDiagnostics();
+    addTearDown(diagnostics.dispose);
+
+    final client = MockClient(
+      (_) async => http.Response(
+        '{"message":"Too many requests"}',
+        429,
+        headers: {'retry-after': '120'},
+      ),
+    );
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      diagnostics: diagnostics,
+    );
+
+    await expectLater(
+      gateway.searchRepositories('flutter'),
+      throwsA(
+        isA<ApiFailure>().having(
+          (e) => e.kind,
+          'kind',
+          ApiFailureKind.rateLimited,
+        ),
+      ),
+    );
+
+    expect(diagnostics.value, hasLength(2));
+
+    final responseEvent = diagnostics.value.first;
+    final policyEvent = diagnostics.value.last;
+
+    expect(responseEvent.outcome, ApiDiagnosticOutcome.response);
+    expect(responseEvent.httpStatus, 429);
+
+    expect(
+      policyEvent.outcome,
+      ApiDiagnosticOutcome.policyBlockedAfterResponse,
+    );
+    expect(policyEvent.httpStatus, isNull);
+    expect(policyEvent.policyRetryAt, now.add(const Duration(seconds: 120)));
+  });
+
+  test('HG54: HTTP 200で残数0ならPolicyの停止を診断記録', () async {
+    final diagnostics = InMemoryApiDiagnostics();
+    addTearDown(diagnostics.dispose);
+
+    final reset = now.add(const Duration(minutes: 2));
+
+    final client = MockClient(
+      (_) async => http.Response(
+        jsonEncode(payload()),
+        200,
+        headers: {
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': '${reset.millisecondsSinceEpoch ~/ 1000}',
+        },
+      ),
+    );
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+      diagnostics: diagnostics,
+    );
+
+    final result = await gateway.searchRepositories('flutter');
+
+    // 正常な検索結果は利用できる。
+    expect(result.items.length, 1);
+
+    // HTTP応答とPolicyの状態を別々に記録。
+    expect(diagnostics.value, hasLength(2));
+    expect(diagnostics.value.first.httpStatus, 200);
+
+    final policyEvent = diagnostics.value.last;
+
+    expect(
+      policyEvent.outcome,
+      ApiDiagnosticOutcome.policyBlockedAfterResponse,
+    );
+    expect(policyEvent.policyRetryAt, reset);
+  });
+}
+
+final class _ThrowingDiagnosticsSink implements ApiDiagnosticsSink {
+  @override
+  void record(ApiDiagnosticEvent event) {
+    throw StateError('Simulated diagnostics failure');
+  }
 }
