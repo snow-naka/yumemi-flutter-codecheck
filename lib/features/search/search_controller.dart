@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 import 'dart:developer' as developer;
 
@@ -53,8 +54,9 @@ class SearchController extends Notifier<SearchState> {
         query,
         page: requestedPage,
         perPage: requestedPerPage,
+        isCanceled: () =>
+            !requestRef.mounted || generation != _requestGeneration,
       );
-
       // 破棄済み・キャンセル済みなら反映しない。
       if (!requestRef.mounted || generation != _requestGeneration) {
         return;
@@ -157,6 +159,8 @@ class SearchController extends Notifier<SearchState> {
         current.query,
         page: requestedPage,
         perPage: current.perPage,
+        isCanceled: () =>
+            !requestRef.mounted || generation != _requestGeneration,
       );
 
       if (!requestRef.mounted || generation != _requestGeneration) {
@@ -215,22 +219,15 @@ class SearchController extends Notifier<SearchState> {
   ) {
     try {
       reporter.report(error, stackTrace);
-    } catch (reportError, reportStackTrace) {
-      // Reporterの失敗で検索状態を壊さない。
-      // 比較試作では別の診断出力へフォールバックする。
-      developer.log(
-        'Unexpected error reporter failed',
-        name: 'yumemi.search',
-        error: reportError,
-        stackTrace: reportStackTrace,
-      );
-
-      developer.log(
-        'Original unexpected search error',
-        name: 'yumemi.search',
-        error: error,
-        stackTrace: stackTrace,
-      );
+    } catch (_) {
+      // Reporterが失敗しても検索状態を壊さない。
+      // 元の例外・Reporterの例外・スタックトレースは出力しない。
+      if (kDebugMode) {
+        developer.log(
+          'Unexpected error reporter failed (details omitted)',
+          name: 'yumemi.search',
+        );
+      }
     }
   }
 }

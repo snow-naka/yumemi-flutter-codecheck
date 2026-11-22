@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
+import '../../devtools/api_diagnostics_screen.dart';
 import '../../models/repository_models.dart';
 import '../detail/repository_detail_provider.dart';
 import '../detail/repository_detail_screen.dart';
@@ -67,7 +69,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         state is SearchLoading ||
         (state is SearchResults && state.loadMore is LoadMoreLoading);
     return Scaffold(
-      appBar: AppBar(title: const Text('Repository Search')),
+      appBar: AppBar(
+        title: const Text('Repository Search'),
+        actions: [
+          if (kDebugMode)
+            IconButton(
+              key: const Key('open-api-diagnostics'),
+              tooltip: 'API通信インスペクター',
+              icon: const Icon(Icons.bug_report_outlined),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ApiDiagnosticsScreen(),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -247,8 +267,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ],
         ),
-
-        LoadMoreEnd() => const Center(child: Text('これ以上の結果はありません。')),
+        LoadMoreEnd(:final reason) => Center(
+          child: Text(switch (reason) {
+            SearchEndReason.githubLimitReached =>
+              'GitHub検索APIの取得上限（1,000件）に達しました。',
+            SearchEndReason.exhausted => 'これ以上の結果はありません。',
+          }),
+        ),
       },
     );
   }

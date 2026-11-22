@@ -546,4 +546,52 @@ void main() {
 
     expect(newOffset, 0);
   });
+
+  testWidgets('UI01: GitHubの1000件上限を通常終了と区別して表示', (tester) async {
+    await start(tester);
+    await search(tester, 'flutter');
+
+    final base = resultPage(count: 1);
+
+    requests.single.complete(
+      SearchPage(
+        items: base.items,
+        totalCount: 1500,
+        incompleteResults: false,
+        page: 1,
+        perPage: 30,
+        navigation: const PageEnd(SearchEndReason.githubLimitReached),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('GitHub検索APIの取得上限（1,000件）に達しました。'), findsOneWidget);
+
+    expect(find.text('これ以上の結果はありません。'), findsNothing);
+  });
+
+  testWidgets('UI02: 通常終了では1000件上限の案内を表示しない', (tester) async {
+    await start(tester);
+    await search(tester, 'flutter');
+
+    final base = resultPage(count: 1);
+
+    requests.single.complete(
+      SearchPage(
+        items: base.items,
+        totalCount: 1,
+        incompleteResults: false,
+        page: 1,
+        perPage: 30,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('これ以上の結果はありません。'), findsOneWidget);
+
+    expect(find.text('GitHub検索APIの取得上限（1,000件）に達しました。'), findsNothing);
+  });
 }

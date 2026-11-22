@@ -16,13 +16,14 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     this.delay = const Duration(milliseconds: 300),
     this.searchHandler,
     this.detailHandler,
+    this.openIssueCountHandler,
     List<RepositorySummary>? searchSummaries,
   }) : _searchSummaries = List<RepositorySummary>.unmodifiable(
          searchSummaries ?? _summaries,
        );
 
   final List<RepositorySummary> _searchSummaries;
-
+  final FakeOpenIssueCountHandler? openIssueCountHandler;
   final Duration delay;
   // 指定したハンドラーは既定の待機・シナリオを置き換える。
   final FakeSearchHandler? searchHandler;
@@ -53,6 +54,7 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     String query, {
     int page = 1,
     int perPage = 30,
+    bool Function()? isCanceled,
   }) async {
     if (page < 1) throw ArgumentError.value(page, 'page');
     if (perPage < 1 || perPage > 100) {
@@ -141,7 +143,32 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     );
   }
 
+  @override
+  Future<int> getOpenIssueCount(
+    RepositoryKey key, {
+    bool Function()? isCanceled,
+  }) async {
+    if (isCanceled?.call() ?? false) {
+      throw const QueuedRequestCanceled();
+    }
+
+    final handler = openIssueCountHandler;
+    if (handler != null) {
+      return handler(key);
+    }
+
+    await _wait();
+
+    if (isCanceled?.call() ?? false) {
+      throw const QueuedRequestCanceled();
+    }
+
+    return 0;
+  }
+
   Future<void> _wait() async {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
   }
 }
+
+typedef FakeOpenIssueCountHandler = Future<int> Function(RepositoryKey key);
