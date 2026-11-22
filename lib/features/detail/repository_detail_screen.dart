@@ -32,6 +32,7 @@ class RepositoryDetailScreen extends ConsumerWidget {
             ),
             Text(shownSummary.fullName),
             Text('言語：${shownSummary.language ?? '未指定'}'),
+            Text('Open Issue＋PR数：${shownSummary.openIssueAndPullRequestCount}'),
             const SizedBox(height: 16),
             if (state.isLoading) ...[
               const Center(child: CircularProgressIndicator()),
@@ -50,9 +51,6 @@ class RepositoryDetailScreen extends ConsumerWidget {
               Text('Star数：${detail.summary.starCount}'),
               Text('Watcher数：${detail.watcherCount}'),
               Text('Fork数：${detail.summary.forkCount}'),
-              Text(
-                'Open Issue＋PR数：${detail.summary.openIssueAndPullRequestCount}',
-              ),
               const SizedBox(height: 16),
               _OpenIssueCountSection(repositoryKey: shownSummary.key),
             ],
@@ -110,12 +108,12 @@ class _OpenIssueCountSection extends ConsumerStatefulWidget {
 class _OpenIssueCountSectionState
     extends ConsumerState<_OpenIssueCountSection> {
   bool _loading = false;
+  bool _routePopped = false;
   int? _count;
   String? _error;
-
   Future<void> _load() async {
     // 二重タップや連続操作による重複要求を防ぐ。
-    if (_loading) return;
+    if (_loading || _routePopped) return;
 
     setState(() {
       _loading = true;
@@ -127,7 +125,7 @@ class _OpenIssueCountSectionState
     try {
       final count = await gateway.getOpenIssueCount(
         widget.repositoryKey,
-        isCanceled: () => !mounted,
+        isCanceled: () => !mounted || _routePopped,
       );
 
       if (!mounted) return;
@@ -171,17 +169,24 @@ class _OpenIssueCountSectionState
         ? 'Issue数を再試行（検索APIを1回使用）'
         : 'Issue数を取得（検索APIを1回使用）';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(status),
-        if (_error != null) ...[const SizedBox(height: 8), Text(_error!)],
-        const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: _loading ? null : _load,
-          child: Text(buttonLabel),
-        ),
-      ],
+    return PopScope<void>(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          _routePopped = true;
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(status),
+          if (_error != null) ...[const SizedBox(height: 8), Text(_error!)],
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _loading ? null : _load,
+            child: Text(buttonLabel),
+          ),
+        ],
+      ),
     );
   }
 }

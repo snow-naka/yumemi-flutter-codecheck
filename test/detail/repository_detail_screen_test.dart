@@ -1,5 +1,10 @@
 import 'dart:async';
 
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:yumemi_app/data/http_github_repository_gateway.dart';
+import 'package:yumemi_app/data/github_rate_limit_policy.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -475,4 +480,120 @@ void main() {
     expect(avatar.child, isA<Icon>());
     expect((avatar.child! as Icon).icon, Icons.person);
   });
+
+  testWidgets('IC07: 戻る操作後のキュー待ちIssue検索は送信しない', (tester) async {
+    final sentPaths = <String>[];
+    final heldResponse = Completer<http.Response>();
+
+    final client = MockClient((request) async {
+      sentPaths.add(request.url.path);
+
+      if (request.url.path == '/search/repositories') {
+        // キューを塞ぐため、HTTP応答を保留する。
+        return heldResponse.future;
+      }
+
+      if (request.url.path == '/search/issues') {
+        return http.Response(
+          '{"total_count":7,"incomplete_results":false,"items":[{"number":1}]}',
+          200,
+        );
+      }
+
+      throw StateError('Unexpected HTTP request: ${request.url}');
+    });
+    addTearDown(client.close);
+
+    final httpGateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => DateTime.utc(2026, 11, 22, 12),
+    );
+
+    final gateway = _IssueViaHttpGateway(httpGateway);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [githubRepositoryGatewayProvider.overrideWithValue(gateway)],
+        child: const MyApp(),
+      ),
+    );
+
+    // 1. Fakeで検索・詳細画面を表示する。
+    await tester.enterText(find.byType(TextFormField), 'submitted');
+    await tester.tap(find.widgetWithText(FilledButton, '検索'));
+    await tester.pump();
+
+    await tester.tap(find.text('repository-0'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Issue数を取得（検索APIを1回使用）'), findsOneWidget);
+
+    // 2. 別のHTTP検索でGatewayのキューを塞ぐ。
+    final holdingSearch = httpGateway.searchRepositories('queue-holder');
+
+    await tester.pump();
+
+    expect(sentPaths, ['/search/repositories']);
+
+    // 3. Issue検索を要求する。まだ送信はできない。
+    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.pump();
+
+    expect(sentPaths, ['/search/repositories']);
+
+    // 4. 詳細画面から戻る。
+    await tester.pageBack();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    // 退場アニメーション中なのでWidgetはまだ存在する。
+    expect(
+      find.byType(RepositoryDetailScreen, skipOffstage: false),
+      findsOneWidget,
+    );
+
+    // 5. 戻るアニメーションが終わる前に先行HTTPを完了。
+    heldResponse.complete(
+      http.Response(
+        '{"total_count":0,"incomplete_results":false,"items":[]}',
+        200,
+      ),
+    );
+
+    await tester.pump();
+    await holdingSearch;
+    await tester.pump();
+
+    // 6. Issue検索はHTTP送信されない。
+    expect(sentPaths, ['/search/repositories']);
+
+    // 画面の退場完了後も不要な送信がない。
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(sentPaths, ['/search/repositories']);
+  });
+}
+
+class _IssueViaHttpGateway extends FakeGitHubRepositoryGateway {
+  _IssueViaHttpGateway(this.httpGateway)
+    : super(
+        delay: Duration.zero,
+        searchHandler: (query, {required page, required perPage}) async =>
+            resultPage(count: 1),
+        detailHandler: (key) async => RepositoryDetail(
+          summary: resultPage(count: 1).items.first,
+          watcherCount: 8,
+        ),
+      );
+
+  final HttpGitHubRepositoryGateway httpGateway;
+
+  @override
+  Future<int> getOpenIssueCount(
+    RepositoryKey key, {
+    bool Function()? isCanceled,
+  }) {
+    return httpGateway.getOpenIssueCount(key, isCanceled: isCanceled);
+  }
 }

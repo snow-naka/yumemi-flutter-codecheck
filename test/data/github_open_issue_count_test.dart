@@ -38,6 +38,17 @@ void main() {
     );
 
     expect(parseOpenIssueCount(empty), 0);
+    final many = utf8.encode(
+      jsonEncode({
+        'total_count': 1001,
+        'incomplete_results': false,
+        'items': [
+          {'number': 1},
+        ],
+      }),
+    );
+
+    expect(parseOpenIssueCount(many), 1001);
   });
 
   test('IC03: 不完全・不正な検索結果を件数として採用しない', () {
@@ -47,6 +58,8 @@ void main() {
       '{"total_count":"12","incomplete_results":false,"items":[]}',
       '{"total_count":-1,"incomplete_results":false,"items":[]}',
       '{"total_count":0,"incomplete_results":false}',
+      '{"total_count":0,"incomplete_results":false,"items":[{"number":1}]}',
+      '{"total_count":3,"incomplete_results":false,"items":[{"number":1},{"number":2}]}',
     ];
 
     for (final body in invalidBodies) {

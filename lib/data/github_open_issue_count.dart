@@ -30,7 +30,13 @@ int parseOpenIssueCount(List<int> bodyBytes) {
         items is! List) {
       throw const FormatException('Invalid issue search result');
     }
+    // per_page=1かつ最初のページを取得しているため、
+    // total_count=0ならitemsは空、正数なら1件であることを要求。
+    final expectedItems = total == 0 ? 0 : 1;
 
+    if (items.length != expectedItems) {
+      throw const FormatException('Inconsistent issue search result');
+    }
     return total;
   } on FormatException {
     throw const ApiFailure(
