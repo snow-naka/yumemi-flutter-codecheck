@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 abstract interface class UnexpectedErrorReporter {
@@ -17,11 +18,11 @@ final class DeveloperLogUnexpectedErrorReporter
 
   @override
   void report(Object error, StackTrace stackTrace) {
+    if (!kDebugMode) return;
+
     developer.log(
-      'Unexpected search error',
+      'Unexpected search error (details omitted)',
       name: 'yumemi.search.spike',
-      error: error,
-      stackTrace: stackTrace,
     );
   }
 }
