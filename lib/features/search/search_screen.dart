@@ -10,6 +10,7 @@ import '../detail/repository_detail_provider.dart';
 import '../detail/repository_detail_screen.dart';
 import 'search_controller.dart';
 import 'search_state.dart';
+import 'viewed_repository_provider.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -51,7 +52,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _openDetail(RepositorySummary repository) {
     FocusScope.of(context).unfocus();
-    // autoDisposeの完了前に開き直した場合も、選択した詳細だけを取得し直す。
+    // 詳細画面を開いたリポジトリを閲覧済みにする。
+    ref.read(viewedRepositoryProvider.notifier).markViewed(repository.key);
+
+    // キャッシュの有効期限を確認するため再評価。
     ref.invalidate(repositoryDetailProvider(repository.key));
     unawaited(
       Navigator.of(context).push<void>(
@@ -65,6 +69,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(searchControllerProvider);
+    final viewedKeys = ref.watch(viewedRepositoryProvider);
     final busy =
         state is SearchLoading ||
         (state is SearchResults && state.loadMore is LoadMoreLoading);
@@ -116,7 +121,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Text('送信済みの検索語：${state.query}'),
                 ),
-              Expanded(child: _content(state)),
+              Expanded(child: _content(state, viewedKeys)),
             ],
           ),
         ),
@@ -124,7 +129,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _content(SearchState state) {
+  Widget _content(SearchState state, Set<RepositoryKey> viewedKeys) {
     return switch (state) {
       SearchIdle() => const Center(child: Text('キーワードを入力して検索してください。')),
 
@@ -208,7 +213,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   return ListTile(
                     key: ValueKey(repository.key),
                     onTap: () => _openDetail(repository),
-                    leading: const Icon(Icons.folder_outlined),
+                    leading: SizedBox(
+                      width: 68,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 36,
+                            child: Text(
+                              '${index + 1}.',
+                              textAlign: TextAlign.right,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.folder_outlined),
+                        ],
+                      ),
+                    ),
+                    trailing: viewedKeys.contains(repository.key)
+                        ? const Icon(
+                            Icons.check_circle_outline,
+                            semanticLabel: '閲覧済み',
+                          )
+                        : null,
                     title: Text(repository.name),
                     subtitle: Text(
                       '${repository.fullName} / ${repository.language ?? '未指定'}',

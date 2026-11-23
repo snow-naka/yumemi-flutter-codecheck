@@ -8,6 +8,8 @@ import 'package:yumemi_app/main.dart';
 import 'package:yumemi_app/models/api_failure.dart';
 import 'package:yumemi_app/models/repository_models.dart';
 import 'package:yumemi_app/providers.dart';
+import 'package:yumemi_app/features/search/viewed_repository_provider.dart';
+import 'package:yumemi_app/features/detail/repository_detail_screen.dart';
 
 import 'search_test_support.dart';
 
@@ -593,5 +595,192 @@ void main() {
     expect(find.text('これ以上の結果はありません。'), findsOneWidget);
 
     expect(find.text('GitHub検索APIの取得上限（1,000件）に達しました。'), findsNothing);
+  });
+  testWidgets('VH03: 検索結果に番号を表示し、開いた項目を閲覧済みにする', (tester) async {
+    await start(tester);
+    await search(tester, 'flutter');
+
+    final page = resultPage(count: 2);
+    requests.single.complete(page);
+    await tester.pump();
+
+    // 検索結果には表示順の番号が付く。
+    expect(find.text('1.'), findsOneWidget);
+    expect(find.text('2.'), findsOneWidget);
+
+    // 最初は閲覧済みがない。
+    expect(find.byIcon(Icons.check_circle_outline), findsNothing);
+
+    // 1件目を開く。
+    await tester.tap(find.text('repository-0'));
+    await tester.pump();
+
+    final viewed = tester.container().read(viewedRepositoryProvider);
+
+    expect(viewed.contains(page.items[0].key), isTrue);
+    expect(viewed.contains(page.items[1].key), isFalse);
+
+    // 一覧へ戻る。
+    // 詳細画面が表示されていることを確認する。
+    // 画面遷移のアニメーションを進める。
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // 詳細画面が実際に存在することを確認。
+    final detailFinder = find.byType(RepositoryDetailScreen);
+    expect(detailFinder, findsOneWidget);
+
+    // 詳細画面から検索一覧へ戻る。
+    Navigator.of(tester.element(detailFinder)).pop();
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    // 閲覧済みチェックが1件表示される。
+    expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
+
+    // 番号は変わらない。
+    expect(find.text('1.'), findsOneWidget);
+    expect(find.text('2.'), findsOneWidget);
+  });
+
+  testWidgets('VH04: 追加読み込み後も31番以降の連番を表示', (tester) async {
+    await start(tester);
+    await search(tester, 'flutter');
+
+    // 1ページ目は30件。
+    final firstPage = resultPage(count: 30);
+
+    requests[0].complete(
+      SearchPage(
+        items: firstPage.items,
+        totalCount: 40,
+        incompleteResults: false,
+        page: 1,
+        perPage: 30,
+        navigation: const NextPage(2),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('1.'), findsOneWidget);
+    expect(find.text('2.'), findsOneWidget);
+
+    // 一覧の末尾までスクロールして追加読み込み。
+    final scrollable = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(Scrollable),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('もっと読み込む'),
+      300,
+      scrollable: scrollable,
+    );
+
+    await tester.tap(find.text('もっと読み込む'));
+    await tester.pump();
+
+    expect(requests, hasLength(2));
+
+    // 2ページ目は新しい10件。
+    final secondItems = [
+      for (var i = 30; i < 40; i++)
+        RepositorySummary(
+          key: RepositoryKey(id: 1000 + i, owner: 'test', name: 'extra-$i'),
+          avatarUrl: '',
+          language: 'Dart',
+          starCount: 0,
+          forkCount: 0,
+          openIssueAndPullRequestCount: 0,
+        ),
+    ];
+
+    requests[1].complete(
+      SearchPage(
+        items: secondItems,
+        totalCount: 40,
+        incompleteResults: false,
+        page: 2,
+        perPage: 30,
+        navigation: const PageEnd(SearchEndReason.exhausted),
+      ),
+    );
+
+    await tester.pump();
+
+    // ListViewは画面外の行をまだ構築していないため、
+    // 対象の番号までスクロールして検証する。
+    await tester.scrollUntilVisible(
+      find.text('31.'),
+      250,
+      scrollable: scrollable,
+    );
+
+    expect(find.text('31.'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('40.'),
+      250,
+      scrollable: scrollable,
+    );
+
+    expect(find.text('40.'), findsOneWidget);
+    expect(find.text('41.'), findsNothing);
+  });
+
+  testWidgets('VH05: 再検索で同じリポジトリが現れたら閲覧済みを維持', (tester) async {
+    await start(tester);
+    await search(tester, 'first');
+
+    final firstPage = resultPage(count: 2);
+    requests[0].complete(firstPage);
+    await tester.pump();
+
+    expect(find.byIcon(Icons.check_circle_outline), findsNothing);
+
+    // 最初の検索結果の1件目を開く。
+    await tester.tap(find.text('repository-0'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final detailFinder = find.byType(RepositoryDetailScreen);
+    expect(detailFinder, findsOneWidget);
+
+    final viewed = tester.container().read(viewedRepositoryProvider);
+
+    expect(viewed.contains(firstPage.items[0].key), isTrue);
+    expect(viewed.contains(firstPage.items[1].key), isFalse);
+
+    // 詳細画面から一覧へ戻る。
+    Navigator.of(tester.element(detailFinder)).pop();
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
+
+    // 別の検索語で再検索。
+    await search(tester, 'second');
+
+    // 同じリポジトリが検索結果に再び含まれる。
+    requests[1].complete(resultPage(count: 2));
+    await tester.pump();
+
+    // 閲覧履歴は再検索で失われない。
+    expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
+
+    expect(
+      tester
+          .container()
+          .read(viewedRepositoryProvider)
+          .contains(firstPage.items[0].key),
+      isTrue,
+    );
+
+    // 番号は新しい検索結果の表示順。
+    expect(find.text('1.'), findsOneWidget);
+    expect(find.text('2.'), findsOneWidget);
+
+    expect(queries, ['first', 'second']);
   });
 }
