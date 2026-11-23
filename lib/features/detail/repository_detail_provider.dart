@@ -1,30 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/api_failure.dart';
 import '../../models/repository_models.dart';
 import '../../providers.dart';
 
 final repositoryDetailProvider = FutureProvider.autoDispose
     .family<RepositoryDetail, RepositoryKey>((ref, key) async {
-      final cache = ref.read(repositoryDetailCacheProvider);
-
-      // 15分以内の取得済み情報があれば通信しない。
-      final cached = cache.getFresh(key);
-      if (cached != null) {
-        return cached;
-      }
-
       final gateway = ref.watch(githubRepositoryGatewayProvider);
-      var disposed = false;
-
-      ref.onDispose(() {
-        disposed = true;
-      });
       final detail = await gateway.getRepository(key);
-
-      // 古い要求の完了によってキャッシュを上書きしない。
-      if (!disposed && ref.mounted) {
-        cache.put(key, detail);
+      if (detail.summary.key.id != key.id) {
+        throw const ApiFailure(
+          kind: ApiFailureKind.invalidResponse,
+          safeMessage: '検索時と異なるリポジトリが返されました。',
+        );
       }
-
       return detail;
     }, retry: (retryCount, error) => null);

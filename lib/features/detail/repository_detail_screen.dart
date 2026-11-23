@@ -17,10 +17,6 @@ class RepositoryDetailScreen extends ConsumerWidget {
     final state = ref.watch(provider);
     final detail = state.isLoading ? null : state.asData?.value;
     final shownSummary = detail?.summary ?? summary;
-    final issueRequestKey =
-        detail != null && detail.summary.key.id == summary.key.id
-        ? detail.summary.key
-        : null;
     return Scaffold(
       appBar: AppBar(title: const Text('リポジトリ詳細')),
       body: SingleChildScrollView(
@@ -55,24 +51,12 @@ class RepositoryDetailScreen extends ConsumerWidget {
               Text('Star数：${detail.summary.starCount}'),
               Text('Watcher数：${detail.watcherCount}'),
               Text('Fork数：${detail.summary.forkCount}'),
-              const SizedBox(height: 16),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: () {
-                  ref
-                      .read(repositoryDetailCacheProvider)
-                      .invalidate(summary.key);
-
-                  ref.invalidate(provider);
-                },
-                child: const Text('詳細情報を更新（Core APIを使用）'),
-              ),
             ],
             const SizedBox(height: 16),
-            _OpenIssueCountSection(
+            _RepositoryDetailActions(
               key: ValueKey(summary.key),
               repositoryKey: summary.key,
-              requestKey: issueRequestKey,
+              requestKey: detail?.summary.key,
             ),
           ],
         ),
@@ -115,8 +99,8 @@ class _OwnerAvatar extends StatelessWidget {
   }
 }
 
-class _OpenIssueCountSection extends ConsumerStatefulWidget {
-  const _OpenIssueCountSection({
+class _RepositoryDetailActions extends ConsumerStatefulWidget {
+  const _RepositoryDetailActions({
     super.key,
     required this.repositoryKey,
     required this.requestKey,
@@ -126,12 +110,12 @@ class _OpenIssueCountSection extends ConsumerStatefulWidget {
   final RepositoryKey? requestKey;
 
   @override
-  ConsumerState<_OpenIssueCountSection> createState() =>
-      _OpenIssueCountSectionState();
+  ConsumerState<_RepositoryDetailActions> createState() =>
+      _RepositoryDetailActionsState();
 }
 
-class _OpenIssueCountSectionState
-    extends ConsumerState<_OpenIssueCountSection> {
+class _RepositoryDetailActionsState
+    extends ConsumerState<_RepositoryDetailActions> {
   bool _loading = false;
   bool _routePopped = false;
   int? _count;
@@ -140,7 +124,7 @@ class _OpenIssueCountSectionState
   int _requestGeneration = 0;
 
   @override
-  void didUpdateWidget(covariant _OpenIssueCountSection oldWidget) {
+  void didUpdateWidget(covariant _RepositoryDetailActions oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.requestKey != widget.requestKey) {
@@ -163,10 +147,25 @@ class _OpenIssueCountSectionState
     _fetchedAt = cached?.fetchedAt;
   }
 
+  // 再描画前の連続タップでも、現在の詳細取得状態で排他を判定する。
+  bool get _canStartRequest {
+    if (!mounted || _routePopped || _loading || widget.requestKey == null) {
+      return false;
+    }
+    final detail = ref.read(repositoryDetailProvider(widget.repositoryKey));
+    return !detail.isLoading &&
+        detail.asData?.value.summary.key == widget.requestKey;
+  }
+
+  void _refreshDetail() {
+    if (!_canStartRequest) return;
+    ref.invalidate(repositoryDetailProvider(widget.repositoryKey));
+  }
+
   Future<void> _load() async {
     final target = widget.requestKey;
 
-    if (_loading || _routePopped || target == null) return;
+    if (target == null || !_canStartRequest) return;
 
     final generation = ++_requestGeneration;
     setState(() {
@@ -259,6 +258,16 @@ class _OpenIssueCountSectionState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.requestKey != null) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _loading ? null : _refreshDetail,
+                child: const Text('詳細情報を更新（Core APIを使用）'),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(status),
           if (_fetchedAt != null) ...[
             const SizedBox(height: 4),

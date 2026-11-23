@@ -55,7 +55,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // 詳細画面を開いたリポジトリを閲覧済みにする。
     ref.read(viewedRepositoryProvider.notifier).markViewed(repository.key);
 
-    // キャッシュの有効期限を確認するため再評価。
+    // 前の画面のautoDisposeが完了する前に開き直しても、詳細を新しく取得する。
     ref.invalidate(repositoryDetailProvider(repository.key));
     unawaited(
       Navigator.of(context).push<void>(
