@@ -9,6 +9,7 @@ import 'package:yumemi_app/features/search/search_state.dart';
 import 'package:yumemi_app/models/api_failure.dart';
 import 'package:yumemi_app/models/repository_models.dart';
 import 'package:yumemi_app/providers.dart';
+import 'package:yumemi_app/features/detail/repository_detail_cache.dart';
 
 import '../search/search_test_support.dart';
 
@@ -175,4 +176,73 @@ void main() {
       expect(detail.read().asData?.value.watcherCount, 8);
     },
   );
+
+  test('DC05: 詳細Providerは15分以内なら再利用し期限切れで再取得', () async {
+    final start = DateTime.utc(2026, 11, 23, 12);
+    var clock = start;
+
+    final cache = RepositoryDetailCache(now: () => clock);
+
+    const key = RepositoryKey(id: 101, owner: 'sample', name: 'example');
+
+    var requestCount = 0;
+
+    final gateway = FakeGitHubRepositoryGateway(
+      detailHandler: (requestedKey) async {
+        requestCount++;
+
+        return RepositoryDetail(
+          summary: RepositorySummary(
+            key: requestedKey,
+            avatarUrl: '',
+            language: 'Dart',
+            starCount: 10,
+            forkCount: 2,
+            openIssueAndPullRequestCount: 1,
+          ),
+          watcherCount: requestCount,
+        );
+      },
+    );
+
+    final testContainer = ProviderContainer.test(
+      overrides: [
+        githubRepositoryGatewayProvider.overrideWithValue(gateway),
+        repositoryDetailCacheProvider.overrideWithValue(cache),
+      ],
+    );
+
+    // 詳細画面を開いて閉じる操作に相当する。
+    Future<int> openAndClose() async {
+      final subscription = testContainer.listen(
+        repositoryDetailProvider(key),
+        (_, _) {},
+      );
+
+      await testContainer.pump();
+
+      final watcherCount = subscription.read().asData!.value.watcherCount;
+
+      subscription.close();
+      await testContainer.pump();
+
+      return watcherCount;
+    }
+
+    // 初回はHTTP Gateway相当の取得処理を呼ぶ。
+    expect(await openAndClose(), 1);
+    expect(requestCount, 1);
+
+    // 14分後はキャッシュを利用。
+    clock = start.add(const Duration(minutes: 14));
+
+    expect(await openAndClose(), 1);
+    expect(requestCount, 1);
+
+    // 15分経過すると再取得する。
+    clock = start.add(const Duration(minutes: 15));
+
+    expect(await openAndClose(), 2);
+    expect(requestCount, 2);
+  });
 }

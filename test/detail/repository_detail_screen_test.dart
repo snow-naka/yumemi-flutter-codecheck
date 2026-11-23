@@ -274,28 +274,45 @@ void main() {
     },
   );
 
-  testWidgets('closing a successful detail clears its cache before reopening', (
-    tester,
-  ) async {
+  testWidgets('DC04: 詳細画面を開き直しても有効なキャッシュを再利用する', (tester) async {
     final container = await start(tester);
+
     final summary =
         (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    // 1回目は詳細APIを取得。
     await open(tester);
+
+    expect(keys, [summary.key]);
+    expect(requests, hasLength(1));
+
     requests.single.complete(
       RepositoryDetail(summary: summary, watcherCount: 8),
     );
+
     await tester.pump();
+
+    expect(find.text('Watcher数：8'), findsOneWidget);
+
+    // 詳細画面を閉じる。
     await back(tester);
+
+    // 詳細Providerは破棄される。
     expect(
       container.read(repositoryDetailProvider(summary.key).exists),
       isFalse,
     );
+
+    // 同じリポジトリを再び開く。
     await open(tester);
-    expect(keys, hasLength(2));
-    expect(find.textContaining('Watcher数：'), findsNothing);
-    requests.last.complete(RepositoryDetail(summary: summary, watcherCount: 9));
     await tester.pump();
-    expect(find.text('Watcher数：9'), findsOneWidget);
+
+    // 取得済みの情報を再利用する。
+    expect(find.text('Watcher数：8'), findsOneWidget);
+
+    // 詳細APIへの要求は1回だけ。
+    expect(keys, [summary.key]);
+    expect(requests, hasLength(1));
   });
 
   testWidgets('unexpected detail errors do not claim to be network failures', (
@@ -638,6 +655,67 @@ void main() {
     // この一連の処理ではIssue検索APIを使用しない。
     expect(issueKeys, isEmpty);
     expect(container.read(searchControllerProvider), same(state));
+  });
+
+  testWidgets('IC11: 詳細更新・画面再表示でもIssue数を保持', (tester) async {
+    final container = await start(tester);
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    // 1. 初回の詳細取得。
+    await open(tester);
+
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 8),
+    );
+    await tester.pump();
+
+    // 2. PR除外Issue数を明示取得。
+    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.pump();
+
+    expect(issueKeys, [summary.key]);
+
+    issueRequests.single.complete(7);
+    await tester.pump();
+
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+    expect(find.textContaining('取得日時：'), findsOneWidget);
+
+    // 3. 詳細情報だけを手動更新。
+    final refreshButton = find.text('詳細情報を更新（Core APIを使用）');
+
+    await tester.ensureVisible(refreshButton);
+    await tester.tap(refreshButton);
+    await tester.pump();
+
+    expect(requests, hasLength(2));
+    expect(issueRequests, hasLength(1));
+
+    // 詳細取得中でもIssue数は残る。
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+
+    requests.last.complete(RepositoryDetail(summary: summary, watcherCount: 9));
+    await tester.pump();
+
+    expect(find.text('Watcher数：9'), findsOneWidget);
+
+    // PR除外Issue数は更新されない。
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+    expect(issueRequests, hasLength(1));
+
+    // 4. 閉じて開き直しても両方キャッシュされる。
+    await back(tester);
+    await open(tester);
+    await tester.pump();
+
+    expect(find.text('Watcher数：9'), findsOneWidget);
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+
+    // CoreもSearchも新しい要求は発生していない。
+    expect(requests, hasLength(2));
+    expect(issueRequests, hasLength(1));
   });
 }
 

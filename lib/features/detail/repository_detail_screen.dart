@@ -52,8 +52,23 @@ class RepositoryDetailScreen extends ConsumerWidget {
               Text('Watcher数：${detail.watcherCount}'),
               Text('Fork数：${detail.summary.forkCount}'),
               const SizedBox(height: 16),
-              _OpenIssueCountSection(repositoryKey: shownSummary.key),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () {
+                  ref
+                      .read(repositoryDetailCacheProvider)
+                      .invalidate(summary.key);
+
+                  ref.invalidate(provider);
+                },
+                child: const Text('詳細情報を更新（Core APIを使用）'),
+              ),
             ],
+            const SizedBox(height: 16),
+            _OpenIssueCountSection(
+              key: ValueKey(summary.key),
+              repositoryKey: summary.key,
+            ),
           ],
         ),
       ),
@@ -96,7 +111,7 @@ class _OwnerAvatar extends StatelessWidget {
 }
 
 class _OpenIssueCountSection extends ConsumerStatefulWidget {
-  const _OpenIssueCountSection({required this.repositoryKey});
+  const _OpenIssueCountSection({super.key, required this.repositoryKey});
 
   final RepositoryKey repositoryKey;
 
@@ -111,8 +126,23 @@ class _OpenIssueCountSectionState
   bool _routePopped = false;
   int? _count;
   String? _error;
+  DateTime? _fetchedAt;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 詳細画面を開き直したとき、以前取得したIssue数を復元。
+    final cached = ref
+        .read(openIssueCountCacheProvider)
+        .get(widget.repositoryKey);
+
+    _count = cached?.count;
+    _fetchedAt = cached?.fetchedAt;
+  }
+
   Future<void> _load() async {
-    // 二重タップや連続操作による重複要求を防ぐ。
+    // 二重タップや、戻る操作後の要求を防ぐ。
     if (_loading || _routePopped) return;
 
     setState(() {
@@ -128,16 +158,25 @@ class _OpenIssueCountSectionState
         isCanceled: () => !mounted || _routePopped,
       );
 
-      if (!mounted) return;
+      // 画面を離れた場合はキャッシュも画面も更新しない。
+      if (!mounted || _routePopped) return;
+
+      // PR除外Issue数と取得日時をキャッシュへ保存。
+      final cache = ref.read(openIssueCountCacheProvider);
+      cache.put(widget.repositoryKey, count);
+
+      final saved = cache.get(widget.repositoryKey)!;
 
       setState(() {
-        _count = count;
+        _count = saved.count;
+        _fetchedAt = saved.fetchedAt;
         _loading = false;
       });
     } on ApiFailure catch (failure) {
-      if (!mounted) return;
+      if (!mounted || _routePopped) return;
 
       setState(() {
+        // 前回取得済みのIssue数と取得日時は維持する。
         _error = failure.safeMessage;
         _loading = false;
       });
@@ -179,6 +218,13 @@ class _OpenIssueCountSectionState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(status),
+          if (_fetchedAt != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '取得日時：${_fetchedAt!.toLocal().toString().substring(0, 16)}（端末時刻）',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           if (_error != null) ...[const SizedBox(height: 8), Text(_error!)],
           const SizedBox(height: 8),
           OutlinedButton(
