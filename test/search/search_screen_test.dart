@@ -783,4 +783,49 @@ void main() {
 
     expect(queries, ['first', 'second']);
   });
+
+  testWidgets('VH07: 文字倍率2倍でも1000番相当の番号幅を確保', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await start(tester);
+    await search(tester, 'flutter');
+
+    // 通常のページ件数で検索結果を返す。
+    requests[0].complete(resultPage(count: 30));
+    await tester.pump();
+
+    // 番号欄の幅は全行共通なので、1番目で確認できる。
+    final numberFinder = find.text('1.');
+    expect(numberFinder, findsOneWidget);
+
+    final number = tester.widget<Text>(numberFinder);
+    final context = tester.element(numberFinder);
+
+    // 文字倍率2.0で「1000.」を描画するのに必要な幅。
+    final painter = TextPainter(
+      text: TextSpan(text: '1000.', style: number.style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+
+    // 実際にListTile内で確保された番号欄の幅。
+    final availableWidth = tester.getSize(numberFinder).width;
+
+    // 折り返しを許可していない。
+    expect(number.maxLines, 1);
+    expect(number.softWrap, isFalse);
+
+    // 最大4桁の番号も収まる幅がある。
+    expect(
+      availableWidth + 0.01,
+      greaterThanOrEqualTo(painter.width),
+      reason: '文字倍率2.0でも1000.が収まる幅が必要',
+    );
+
+    painter.dispose();
+
+    expect(tester.takeException(), isNull);
+  });
 }

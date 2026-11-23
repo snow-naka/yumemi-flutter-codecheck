@@ -209,21 +209,37 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   }
 
                   final repository = items[index];
+                  final numberStyle = Theme.of(context).textTheme.bodySmall;
+
+                  // GitHub検索結果の最大表示番号「1000.」に必要な幅を測定。
+                  final numberPainter = TextPainter(
+                    text: TextSpan(text: '1000.', style: numberStyle),
+                    textDirection: Directionality.of(context),
+                    textScaler: MediaQuery.textScalerOf(context),
+                    maxLines: 1,
+                  )..layout();
+
+                  final measuredWidth = numberPainter.width.ceilToDouble();
+                  numberPainter.dispose();
+
+                  final numberWidth = measuredWidth < 36 ? 36.0 : measuredWidth;
 
                   return ListTile(
                     key: ValueKey(repository.key),
                     onTap: () => _openDetail(repository),
                     leading: SizedBox(
-                      width: 68,
+                      width: numberWidth + 6 + 24,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(
-                            width: 36,
+                            width: numberWidth,
                             child: Text(
                               '${index + 1}.',
                               textAlign: TextAlign.right,
-                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: numberStyle,
                             ),
                           ),
                           const SizedBox(width: 6),
