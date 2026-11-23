@@ -10,19 +10,42 @@ import 'package:yumemi_app/models/repository_models.dart';
 import 'package:yumemi_app/providers.dart';
 import 'package:yumemi_app/features/search/viewed_repository_provider.dart';
 import 'package:yumemi_app/features/detail/repository_detail_screen.dart';
+import 'package:yumemi_app/features/search/search_layout_preferences.dart';
 
 import 'search_test_support.dart';
+
+final class _FakeSearchPanelPositionStore implements SearchPanelPositionStore {
+  SearchPanelPosition saved = SearchPanelPosition.top;
+  bool failWrites = false;
+  final writes = <SearchPanelPosition>[];
+
+  @override
+  Future<SearchPanelPosition> read() async => saved;
+
+  @override
+  Future<void> write(SearchPanelPosition position) async {
+    writes.add(position);
+
+    if (failWrites) {
+      throw StateError('テスト用の保存失敗');
+    }
+
+    saved = position;
+  }
+}
 
 void main() {
   late List<String> queries;
   late List<Completer<SearchPage>> requests;
   late FakeGitHubRepositoryGateway fake;
+  late _FakeSearchPanelPositionStore layoutStore;
   final input = find.byType(TextFormField);
-  final submit = find.widgetWithText(FilledButton, '検索');
+  final submit = find.byKey(const Key('search-submit-button'));
 
   setUp(() {
     queries = [];
     requests = [];
+    layoutStore = _FakeSearchPanelPositionStore();
     fake = FakeGitHubRepositoryGateway(
       searchHandler: (query, {required page, required perPage}) {
         queries.add(query);
@@ -46,6 +69,40 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> startWithLayout(WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          githubRepositoryGatewayProvider.overrideWithValue(fake),
+          searchPanelPositionStoreProvider.overrideWithValue(layoutStore),
+        ],
+        child: const MyApp(),
+      ),
+    );
+
+    await tester.pump();
+  }
+
+  Future<void> choosePosition(
+    WidgetTester tester,
+    SearchPanelPosition position,
+  ) async {
+    await tester.tap(find.byKey(const Key('search-layout-menu')));
+    await tester.pumpAndSettle();
+
+    final label = position == SearchPanelPosition.top ? '上に配置（標準）' : '下に配置';
+
+    // Textではなく、タップ対象のメニュー項目を指定する。
+    final menuItem = find.widgetWithText(
+      CheckedPopupMenuItem<SearchPanelPosition>,
+      label,
+    );
+
+    expect(menuItem, findsOneWidget);
+    await tester.tap(menuItem);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('initial view and blank submission do not call the gateway', (
     tester,
   ) async {
@@ -62,7 +119,7 @@ void main() {
       await start(tester);
       await search(tester, '  first  ');
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+      expect(tester.widget<IconButton>(submit).onPressed, isNull);
       await tester.enterText(input, 'second');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.tap(submit);
@@ -74,7 +131,7 @@ void main() {
       expect(find.text('repository-0'), findsOneWidget);
       expect(find.text('送信済みの検索語：first'), findsOneWidget);
       expect(tester.widget<TextFormField>(input).controller!.text, 'second');
-      expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
+      expect(tester.widget<IconButton>(submit).onPressed, isNotNull);
       // 最初の送信でフォーカスが外れるので、次の入力操作を開始する。
       await tester.tap(input);
       await tester.pump();
@@ -137,7 +194,7 @@ void main() {
       );
       await tester.pump();
       expect(find.text('テスト用の取得失敗'), findsOneWidget);
-      expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
+      expect(tester.widget<IconButton>(submit).onPressed, isNotNull);
       await tester.enterText(input, 'edited');
       await tester.tap(find.text('再試行'));
       await tester.pump();
@@ -253,7 +310,7 @@ void main() {
     // 既存結果が消えず、再試行ボタンが表示される
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
-    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('2件表示 / 初回総件数 3件'), findsOneWidget);
     expect(find.text('テスト用の追加読み込み失敗'), findsOneWidget);
     expect(find.text('追加読み込みを再試行'), findsOneWidget);
 
@@ -282,7 +339,7 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
     expect(find.text('repository-2'), findsOneWidget);
-    expect(find.text('表示中：3件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('3件表示 / 初回総件数 3件'), findsOneWidget);
     expect(find.text('これ以上の結果はありません。'), findsOneWidget);
   });
   testWidgets('追加読み込みキャンセル後も既存結果を保持し、再取得できる', (tester) async {
@@ -321,7 +378,7 @@ void main() {
     // 既存の結果を維持
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
-    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('2件表示 / 初回総件数 3件'), findsOneWidget);
 
     // キャンセル済みのAPIが遅れて成功
     requests[1].complete(
@@ -340,7 +397,7 @@ void main() {
     // 古い応答を採用しない
     expect(find.text('repository-2'), findsNothing);
     expect(find.text('もっと読み込む'), findsOneWidget);
-    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('2件表示 / 初回総件数 3件'), findsOneWidget);
 
     // 再び追加読み込みする
     await tester.tap(find.text('もっと読み込む'));
@@ -366,7 +423,7 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
     expect(find.text('repository-2'), findsOneWidget);
-    expect(find.text('表示中：3件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('3件表示 / 初回総件数 3件'), findsOneWidget);
     expect(find.text('これ以上の結果はありません。'), findsOneWidget);
   });
   testWidgets('初回検索キャンセル後に古い応答を無視して再検索できる', (tester) async {
@@ -426,7 +483,7 @@ void main() {
 
     await tester.pump();
 
-    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('2件表示 / 初回総件数 3件'), findsOneWidget);
 
     // 追加読み込み
     await tester.tap(find.text('もっと読み込む'));
@@ -447,7 +504,7 @@ void main() {
     await tester.pump();
 
     // 取得済み5件と初回の総件数3件を区別
-    expect(find.text('表示中：5件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('5件表示 / 初回総件数 3件'), findsOneWidget);
 
     expect(find.text('検索結果の一部を表示しています。'), findsNothing);
   });
@@ -469,7 +526,7 @@ void main() {
 
     await tester.pump();
 
-    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('2件表示 / 初回総件数 3件'), findsOneWidget);
 
     // 追加読み込みを開始
     await tester.tap(find.text('もっと読み込む'));
@@ -497,7 +554,7 @@ void main() {
     expect(find.text('repository-1'), findsOneWidget);
 
     // 初回検索時の総件数として3件を表示
-    expect(find.text('表示中：2件（初回検索時の総件数：3件）'), findsOneWidget);
+    expect(find.text('2件表示 / 初回総件数 3件'), findsOneWidget);
 
     // 追加読み込みは終了
     expect(find.text('これ以上の結果はありません。'), findsOneWidget);
@@ -671,14 +728,22 @@ void main() {
       matching: find.byType(Scrollable),
     );
 
-    await tester.scrollUntilVisible(
-      find.text('もっと読み込む'),
-      300,
-      scrollable: scrollable,
-    );
+    final moreButton = find.widgetWithText(OutlinedButton, 'もっと読み込む');
 
-    await tester.tap(find.text('もっと読み込む'));
+    await tester.scrollUntilVisible(moreButton, 300, scrollable: scrollable);
+
+    // スクロール後の描画と位置を確定させる。
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(moreButton);
     await tester.pump();
+
+    expect(moreButton, findsOneWidget);
+    expect(tester.widget<OutlinedButton>(moreButton).onPressed, isNotNull);
+
+    await tester.tap(moreButton);
+    await tester.pump();
+
+    expect(requests, hasLength(2));
 
     expect(requests, hasLength(2));
 
@@ -784,7 +849,9 @@ void main() {
     expect(queries, ['first', 'second']);
   });
 
-  testWidgets('VH07: 文字倍率2倍でも1000番相当の番号幅を確保', (tester) async {
+  testWidgets('VH07: 文字倍率2倍でも番号とリポジトリ名が正しい順序で表示され、番号用の余分な固定幅を確保しない。', (
+    tester,
+  ) async {
     tester.platformDispatcher.textScaleFactorTestValue = 2.0;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
@@ -796,36 +863,207 @@ void main() {
     await tester.pump();
 
     // 番号欄の幅は全行共通なので、1番目で確認できる。
+
     final numberFinder = find.text('1.');
+    final nameFinder = find.text('repository-0');
+
     expect(numberFinder, findsOneWidget);
+    expect(nameFinder, findsOneWidget);
 
-    final number = tester.widget<Text>(numberFinder);
-    final context = tester.element(numberFinder);
+    final numberRect = tester.getRect(numberFinder);
+    final nameRect = tester.getRect(nameFinder);
 
-    // 文字倍率2.0で「1000.」を描画するのに必要な幅。
-    final painter = TextPainter(
-      text: TextSpan(text: '1000.', style: number.style),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 1,
-    )..layout();
+    // 番号の右側にリポジトリ名がある。
+    expect(numberRect.right, lessThan(nameRect.left));
 
-    // 実際にListTile内で確保された番号欄の幅。
-    final availableWidth = tester.getSize(numberFinder).width;
+    // 番号のための旧固定幅は不要。
+    expect(numberRect.width, lessThan(122));
 
-    // 折り返しを許可していない。
-    expect(number.maxLines, 1);
-    expect(number.softWrap, isFalse);
-
-    // 最大4桁の番号も収まる幅がある。
+    // フォルダアイコンが削除されている。
     expect(
-      availableWidth + 0.01,
-      greaterThanOrEqualTo(painter.width),
-      reason: '文字倍率2.0でも1000.が収まる幅が必要',
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.byIcon(Icons.folder_outlined),
+      ),
+      findsNothing,
     );
 
-    painter.dispose();
-
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LY01: 初期状態は上配置で、下配置に変更できる', (tester) async {
+    await startWithLayout(tester);
+
+    final prompt = find.text('キーワードを入力して検索してください。');
+
+    expect(tester.getTopLeft(input).dy, lessThan(tester.getTopLeft(prompt).dy));
+
+    await choosePosition(tester, SearchPanelPosition.bottom);
+
+    expect(
+      tester.getTopLeft(input).dy,
+      greaterThan(tester.getTopLeft(prompt).dy),
+    );
+    expect(layoutStore.saved, SearchPanelPosition.bottom);
+    expect(layoutStore.writes, [SearchPanelPosition.bottom]);
+  });
+
+  testWidgets('LY02: 配置変更しても検索状態・入力・スクロール・API回数を維持する', (tester) async {
+    await startWithLayout(tester);
+    await search(tester, 'long');
+
+    requests.single.complete(resultPage(count: 30));
+    await tester.pump();
+
+    final listFinder = find.byType(ListView);
+
+    await tester.drag(listFinder, const Offset(0, -650));
+    await tester.pumpAndSettle();
+
+    // 検索結果とは異なる未送信の入力を残す。
+    await tester.enterText(input, 'draft');
+    tester.testTextInput.hide();
+    await tester.pump();
+
+    final beforeList = tester.widget<ListView>(listFinder);
+    final beforeOffset = beforeList.controller!.offset;
+    final beforeCount = beforeList.childrenDelegate.estimatedChildCount;
+
+    expect(beforeOffset, greaterThan(0));
+    expect(queries, ['long']);
+
+    await choosePosition(tester, SearchPanelPosition.bottom);
+
+    final afterList = tester.widget<ListView>(listFinder);
+
+    expect(afterList.controller!.offset, closeTo(beforeOffset, 0.01));
+    expect(afterList.childrenDelegate.estimatedChildCount, beforeCount);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+    expect(find.text('送信済みの検索語：long'), findsOneWidget);
+    expect(queries, ['long']);
+
+    expect(
+      tester.getTopLeft(input).dy,
+      greaterThan(tester.getTopLeft(listFinder).dy),
+    );
+  });
+
+  testWidgets('LY03: 保存した配置を画面再生成時に復元できる', (tester) async {
+    await startWithLayout(tester);
+    await choosePosition(tester, SearchPanelPosition.bottom);
+
+    expect(layoutStore.saved, SearchPanelPosition.bottom);
+
+    // 画面とProviderScopeを破棄し、同じ永続Storeで再起動する。
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    await startWithLayout(tester);
+
+    final prompt = find.text('キーワードを入力して検索してください。');
+
+    expect(
+      tester.getTopLeft(input).dy,
+      greaterThan(tester.getTopLeft(prompt).dy),
+    );
+
+    // 復元はreadだけであり、新たなwriteを発生させない。
+    expect(layoutStore.writes, [SearchPanelPosition.bottom]);
+    expect(queries, isEmpty);
+  });
+
+  testWidgets('LY04: 標準配置へ戻すと上配置になり、設定も保存される', (tester) async {
+    await startWithLayout(tester);
+
+    await choosePosition(tester, SearchPanelPosition.bottom);
+    await choosePosition(tester, SearchPanelPosition.top);
+
+    final prompt = find.text('キーワードを入力して検索してください。');
+
+    expect(tester.getTopLeft(input).dy, lessThan(tester.getTopLeft(prompt).dy));
+    expect(layoutStore.saved, SearchPanelPosition.top);
+    expect(layoutStore.writes, [
+      SearchPanelPosition.bottom,
+      SearchPanelPosition.top,
+    ]);
+  });
+
+  testWidgets('LY05: 設定保存失敗時は直前の配置に戻る', (tester) async {
+    await startWithLayout(tester);
+
+    layoutStore.failWrites = true;
+
+    await choosePosition(tester, SearchPanelPosition.bottom);
+
+    final prompt = find.text('キーワードを入力して検索してください。');
+
+    expect(tester.getTopLeft(input).dy, lessThan(tester.getTopLeft(prompt).dy));
+
+    expect(layoutStore.saved, SearchPanelPosition.top);
+    expect(layoutStore.writes, [SearchPanelPosition.bottom]);
+
+    expect(find.text('検索欄の配置を保存できませんでした。'), findsOneWidget);
+  });
+
+  testWidgets('UX01: 検索アイコンを入力欄内に表示し、検索できる', (tester) async {
+    await start(tester);
+
+    final field = find.byType(TextFormField);
+    final button = find.byKey(const Key('search-submit-button'));
+
+    expect(field, findsOneWidget);
+    expect(button, findsOneWidget);
+
+    // 検索ボタンは入力欄の領域内にある。
+    expect(tester.getRect(field).contains(tester.getCenter(button)), isTrue);
+
+    await tester.enterText(field, 'flutter');
+    await tester.tap(button);
+    await tester.pump();
+
+    expect(queries, ['flutter']);
+
+    requests.single.complete(resultPage());
+    await tester.pump();
+
+    expect(find.text('repository-0'), findsOneWidget);
+  });
+
+  testWidgets('UI03: 件数表示を簡潔にし初回総件数を維持する', (tester) async {
+    await start(tester);
+    await search(tester, 'flutter');
+
+    requests.single.complete(resultPage(count: 30));
+    await tester.pump();
+
+    final countLabel = find.byKey(const Key('search-result-count'));
+
+    expect(countLabel, findsOneWidget);
+
+    expect(find.text('30件表示 / 初回総件数 30件'), findsOneWidget);
+
+    expect(queries, ['flutter']);
+  });
+  testWidgets('UI04: 大きな総件数を桁区切りで表示する', (tester) async {
+    await start(tester);
+    await search(tester, 'flutter');
+
+    final page = resultPage(count: 1);
+
+    requests.single.complete(
+      SearchPage(
+        items: page.items,
+        totalCount: 1234567,
+        incompleteResults: false,
+        page: 1,
+        perPage: 30,
+        navigation: page.navigation, // 追加
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('1件表示 / 初回総件数 1,234,567件'), findsOneWidget);
   });
 }

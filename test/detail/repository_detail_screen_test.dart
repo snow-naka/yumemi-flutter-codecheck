@@ -27,7 +27,11 @@ void main() {
   late FakeGitHubRepositoryGateway fake;
   late List<RepositoryKey> issueKeys;
   late List<Completer<int>> issueRequests;
+  final issueButtonFinder = find.byKey(const Key('load-open-issues'));
 
+  final refreshButtonFinder = find.byKey(
+    const Key('refresh-repository-detail'),
+  );
   setUp(() {
     searches = [];
     keys = [];
@@ -62,7 +66,7 @@ void main() {
       ),
     );
     await tester.enterText(find.byType(TextFormField), 'submitted');
-    await tester.tap(find.widgetWithText(FilledButton, '検索'));
+    await tester.tap(find.byKey(const Key('search-submit-button')));
     await tester.pump();
     return tester.container();
   }
@@ -343,7 +347,7 @@ void main() {
         ),
       );
       await tester.enterText(find.byType(TextFormField), 'riverpod');
-      await tester.tap(find.widgetWithText(FilledButton, '検索'));
+      await tester.tap(find.byKey(const Key('search-submit-button')));
       await tester.pump();
       final container = tester.container();
       final searchState = container.read(searchControllerProvider);
@@ -381,7 +385,7 @@ void main() {
     expect(issueKeys, isEmpty);
     expect(find.text('Open Issue数（PR除外）：未取得'), findsOneWidget);
 
-    final button = find.widgetWithText(OutlinedButton, 'Issue数を取得（検索APIを1回使用）');
+    final button = issueButtonFinder;
 
     // 連続して押しても要求は1回だけ。
     await tester.tap(button);
@@ -434,7 +438,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     await tester.pump();
 
     issueRequests.single.completeError(
@@ -453,7 +457,7 @@ void main() {
     expect(issueKeys, hasLength(1));
 
     // 利用者が明示的に再試行する。
-    await tester.tap(find.text('Issue数を再試行（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     await tester.pump();
 
     expect(issueKeys, hasLength(2));
@@ -556,14 +560,14 @@ void main() {
 
     // 1. Fakeで検索・詳細画面を表示する。
     await tester.enterText(find.byType(TextFormField), 'submitted');
-    await tester.tap(find.widgetWithText(FilledButton, '検索'));
+    await tester.tap(find.byKey(const Key('search-submit-button')));
     await tester.pump();
 
     await tester.tap(find.text('repository-0'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('Issue数を取得（検索APIを1回使用）'), findsOneWidget);
+    expect(issueButtonFinder, findsOneWidget);
 
     // 2. 別のHTTP検索でGatewayのキューを塞ぐ。
     final holdingSearch = httpGateway.searchRepositories('queue-holder');
@@ -573,7 +577,7 @@ void main() {
     expect(sentPaths, ['/search/repositories']);
 
     // 3. Issue検索を要求する。まだ送信はできない。
-    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     expect(
       find.text('Issue数の取得中に問題が発生しました。', skipOffstage: false),
       findsNothing,
@@ -690,7 +694,7 @@ void main() {
     await tester.pump();
 
     // 2. PR除外Issue数を明示取得。
-    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     await tester.pump();
 
     expect(issueKeys, [summary.key]);
@@ -702,7 +706,7 @@ void main() {
     expect(find.textContaining('取得日時：'), findsOneWidget);
 
     // 3. 詳細情報だけを手動更新。
-    final refreshButton = find.text('詳細情報を更新（Core APIを使用）');
+    final refreshButton = refreshButtonFinder;
 
     await tester.ensureVisible(refreshButton);
     await tester.tap(refreshButton);
@@ -776,7 +780,7 @@ void main() {
     // ボタンを押すまではIssue検索しない。
     expect(issueKeys, isEmpty);
 
-    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     await tester.pump();
 
     // 古いowner/nameではなく詳細APIの新しい名前を使う。
@@ -792,10 +796,7 @@ void main() {
     final container = await start(tester);
     final summary =
         (container.read(searchControllerProvider) as SearchResults).items.first;
-    final issueButton = find.widgetWithText(
-      OutlinedButton,
-      'Issue数を取得（検索APIを1回使用）',
-    );
+    final issueButton = issueButtonFinder;
 
     await open(tester);
     requests.single.complete(
@@ -855,8 +856,8 @@ void main() {
     );
     await tester.pump();
 
-    final refresh = find.widgetWithText(OutlinedButton, '詳細情報を更新（Core APIを使用）');
-    final issue = find.widgetWithText(OutlinedButton, 'Issue数を取得（検索APIを1回使用）');
+    final refresh = refreshButtonFinder;
+    final issue = issueButtonFinder;
     final previousRefresh = tester.widget<OutlinedButton>(refresh).onPressed!;
     await tester.tap(issue);
     previousRefresh(); // 同じフレームのボタンも要求を追加できない。
@@ -870,10 +871,7 @@ void main() {
     final saved = cache.get(summary.key)!;
     expect(saved.count, 7);
     expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
-    final reload = find.widgetWithText(
-      OutlinedButton,
-      'Issue数を再取得（検索APIを1回使用）',
-    );
+    final reload = issueButtonFinder;
     final previousReload = tester.widget<OutlinedButton>(reload).onPressed!;
     await tester.tap(refresh);
     previousReload();
@@ -909,7 +907,7 @@ void main() {
       RepositoryDetail(summary: summary, watcherCount: 1),
     );
     await tester.pump();
-    await tester.tap(find.text('Issue数を再取得（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     await tester.pump();
     await back(tester);
     await open(tester);
@@ -919,6 +917,41 @@ void main() {
     expect(find.text('Open Issue数（PR除外）：5'), findsOneWidget);
     expect(find.textContaining('取得日時：'), findsOneWidget);
     expect(issueRequests, hasLength(1));
+  });
+
+  testWidgets('DL01: 狭い画面ではIssue情報とボタンを縦に並べる', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await start(tester);
+    await open(tester);
+
+    final info = find.text('Open Issue数（PR除外）：未取得');
+    final button = find.byKey(const Key('load-open-issues'));
+
+    expect(info, findsOneWidget);
+    expect(button, findsOneWidget);
+
+    expect(
+      tester.getTopLeft(button).dy,
+      greaterThan(tester.getBottomLeft(info).dy),
+    );
+  });
+
+  testWidgets('DL02: 広い画面ではIssue情報とボタンを左右に並べる', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await start(tester);
+    await open(tester);
+
+    final info = find.text('Open Issue数（PR除外）：未取得');
+    final button = find.byKey(const Key('load-open-issues'));
+
+    expect(
+      tester.getTopLeft(button).dx,
+      greaterThan(tester.getTopRight(info).dx),
+    );
   });
 }
 

@@ -17,50 +17,154 @@ class RepositoryDetailScreen extends ConsumerWidget {
     final state = ref.watch(provider);
     final detail = state.isLoading ? null : state.asData?.value;
     final shownSummary = detail?.summary ?? summary;
+
     return Scaffold(
       appBar: AppBar(title: const Text('リポジトリ詳細')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(child: _OwnerAvatar(url: shownSummary.avatarUrl)),
-            const SizedBox(height: 16),
-            Text(
-              shownSummary.name,
-              style: Theme.of(context).textTheme.headlineSmall,
+      body: _RepositoryDetailActions(
+        key: ValueKey(summary.key),
+        repositoryKey: summary.key,
+        requestKey: detail?.summary.key,
+        builder: (context, coreButton, issueControls) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ① 基本情報
+                KeyedSubtree(
+                  key: const ValueKey('detail-section-basic'),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _OwnerAvatar(url: shownSummary.avatarUrl),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              shownSummary.name,
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            Text(shownSummary.fullName, softWrap: true),
+                            const SizedBox(height: 4),
+                            Text('言語：${shownSummary.language ?? '未指定'}'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ② 詳細情報 + Core API更新
+                KeyedSubtree(
+                  key: const ValueKey('detail-section-statistics'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ResponsiveDetailRow(
+                        info: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (detail != null) ...[
+                              Text('Star数：${detail.summary.starCount}'),
+                              Text('Watcher数：${detail.watcherCount}'),
+                              Text('Fork数：${detail.summary.forkCount}'),
+                            ],
+                            Text(
+                              'Open Issue＋PR数：'
+                              '${shownSummary.openIssueAndPullRequestCount}',
+                            ),
+                          ],
+                        ),
+                        action: coreButton,
+                      ),
+                      if (state.isLoading) ...[
+                        const SizedBox(height: 8),
+                        const Center(child: CircularProgressIndicator()),
+                        const Text('詳細情報を取得中…'),
+                      ] else if (state.hasError) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          state.error is ApiFailure
+                              ? (state.error! as ApiFailure).safeMessage
+                              : '詳細情報の処理中に問題が発生しました。',
+                        ),
+                        OutlinedButton(
+                          key: const Key('retry-repository-detail'),
+                          onPressed: () => ref.invalidate(provider),
+                          child: const Text('再試行'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ③ Open Issue情報 + Search API取得
+                KeyedSubtree(
+                  key: const ValueKey('detail-section-issues'),
+                  child: issueControls,
+                ),
+
+                const SizedBox(height: 12),
+
+                // API利用の注意事項
+                Text(
+                  '※ Open Issue数の取得・再取得・再試行には、'
+                  '操作ごとにGitHub Search APIを1回使用します。'
+                  'APIのレート制限に影響します。',
+                  key: const Key('open-issues-api-notice'),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            Text(shownSummary.fullName),
-            Text('言語：${shownSummary.language ?? '未指定'}'),
-            Text('Open Issue＋PR数：${shownSummary.openIssueAndPullRequestCount}'),
-            const SizedBox(height: 16),
-            if (state.isLoading) ...[
-              const Center(child: CircularProgressIndicator()),
-              const Text('詳細情報を取得中…'),
-            ] else if (state.hasError) ...[
-              Text(
-                state.error is ApiFailure
-                    ? (state.error! as ApiFailure).safeMessage
-                    : '詳細情報の処理中に問題が発生しました。',
-              ),
-              OutlinedButton(
-                onPressed: () => ref.invalidate(provider),
-                child: const Text('再試行'),
-              ),
-            ] else if (detail != null) ...[
-              Text('Star数：${detail.summary.starCount}'),
-              Text('Watcher数：${detail.watcherCount}'),
-              Text('Fork数：${detail.summary.forkCount}'),
-            ],
-            const SizedBox(height: 16),
-            _RepositoryDetailActions(
-              key: ValueKey(summary.key),
-              repositoryKey: summary.key,
-              requestKey: detail?.summary.key,
-            ),
-          ],
-        ),
+          );
+        },
       ),
+    );
+  }
+}
+
+class _ResponsiveDetailRow extends StatelessWidget {
+  const _ResponsiveDetailRow({required this.info, required this.action});
+
+  final Widget info;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 文字倍率が大きいほど、横並びに必要な幅を広げる。
+        final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+
+        final minHorizontalWidth = 340.0 * textScale;
+
+        // 横幅が足りない場合は上下に並べる。
+        if (!constraints.hasBoundedWidth ||
+            constraints.maxWidth < minHorizontalWidth) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [info, const SizedBox(height: 8), action],
+          );
+        }
+
+        // 横幅が十分なら従来の左右配置。
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 2, child: info),
+            const SizedBox(width: 12),
+            Expanded(flex: 3, child: action),
+          ],
+        );
+      },
     );
   }
 }
@@ -99,15 +203,23 @@ class _OwnerAvatar extends StatelessWidget {
   }
 }
 
+typedef _DetailActionsBuilder = Widget Function(
+  BuildContext context,
+  Widget coreButton,
+  Widget issueControls,
+);
+
 class _RepositoryDetailActions extends ConsumerStatefulWidget {
   const _RepositoryDetailActions({
     super.key,
     required this.repositoryKey,
     required this.requestKey,
+    required this.builder,
   });
 
   final RepositoryKey repositoryKey;
   final RepositoryKey? requestKey;
+  final _DetailActionsBuilder builder;
 
   @override
   ConsumerState<_RepositoryDetailActions> createState() =>
@@ -244,10 +356,53 @@ class _RepositoryDetailActionsState
     }
 
     final buttonLabel = _count != null
-        ? 'Issue数を再取得（検索APIを1回使用）'
+        ? '再取得'
         : _error != null
-        ? 'Issue数を再試行（検索APIを1回使用）'
-        : 'Issue数を取得（検索APIを1回使用）';
+        ? '再試行'
+        : '取得';
+
+    // 統計情報セクションの右側
+    final Widget coreButton = widget.requestKey != null
+        ? SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              key: const Key('refresh-repository-detail'),
+              onPressed: _loading ? null : _refreshDetail,
+              child: const Text('更新'),
+            ),
+          )
+        : const SizedBox.shrink();
+
+    // Issue情報セクションの右側
+
+    final issueControls = _ResponsiveDetailRow(
+      info: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(status),
+          if (_fetchedAt != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '取得日時：'
+              '${_fetchedAt!.toLocal().toString().substring(0, 16)}'
+              '（端末時刻）',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          if (_error != null) ...[const SizedBox(height: 8), Text(_error!)],
+        ],
+      ),
+      action: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          key: const Key('load-open-issues'),
+          onPressed: _loading || _routePopped || widget.requestKey == null
+              ? null
+              : _load,
+          child: Text(buttonLabel, textAlign: TextAlign.center),
+        ),
+      ),
+    );
 
     return PopScope<void>(
       onPopInvokedWithResult: (didPop, result) {
@@ -255,37 +410,7 @@ class _RepositoryDetailActionsState
           _routePopped = true;
         }
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.requestKey != null) ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: _loading ? null : _refreshDetail,
-                child: const Text('詳細情報を更新（Core APIを使用）'),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          Text(status),
-          if (_fetchedAt != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              '取得日時：${_fetchedAt!.toLocal().toString().substring(0, 16)}（端末時刻）',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-          if (_error != null) ...[const SizedBox(height: 8), Text(_error!)],
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: _loading || _routePopped || widget.requestKey == null
-                ? null
-                : _load,
-            child: Text(buttonLabel),
-          ),
-        ],
-      ),
+      child: widget.builder(context, coreButton, issueControls),
     );
   }
 }

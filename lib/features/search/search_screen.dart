@@ -11,6 +11,7 @@ import '../detail/repository_detail_screen.dart';
 import 'search_controller.dart';
 import 'search_state.dart';
 import 'viewed_repository_provider.dart';
+import 'search_layout_preferences.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -23,6 +24,61 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _formKey = GlobalKey<FormState>();
   final _input = TextEditingController();
   final _scroll = ScrollController(keepScrollOffset: false);
+  SearchPanelPosition _panelPosition = SearchPanelPosition.top;
+  bool _positionChangedByUser = false;
+  bool _savingPosition = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_restorePosition());
+  }
+
+  Future<void> _restorePosition() async {
+    try {
+      final position = await ref.read(searchPanelPositionStoreProvider).read();
+
+      // 読み込み中に利用者が設定を変更した場合は上書きしない。
+      if (!mounted || _positionChangedByUser) return;
+
+      setState(() {
+        _panelPosition = position;
+      });
+    } catch (_) {
+      // 設定を読み込めなければ標準の上配置を維持する。
+    }
+  }
+
+  Future<void> _changePosition(SearchPanelPosition position) async {
+    if (_savingPosition) return;
+
+    final previous = _panelPosition;
+    _positionChangedByUser = true;
+
+    setState(() {
+      _panelPosition = position;
+      _savingPosition = true;
+    });
+
+    try {
+      await ref.read(searchPanelPositionStoreProvider).write(position);
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _panelPosition = previous;
+      });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('検索欄の配置を保存できませんでした。')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingPosition = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -41,6 +97,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     if (!_formKey.currentState!.validate()) return;
+
+    FocusScope.of(context).unfocus(); // 追加
 
     // 新規検索では、描画タイミングに関係なく一覧を先頭へ戻す。
     if (_scroll.hasClients) {
@@ -77,6 +135,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       appBar: AppBar(
         title: const Text('Repository Search'),
         actions: [
+          PopupMenuButton<SearchPanelPosition>(
+            key: const Key('search-layout-menu'),
+            tooltip: '検索欄の配置',
+            enabled: !_savingPosition,
+            icon: const Icon(Icons.tune),
+            onSelected: (position) {
+              unawaited(_changePosition(position));
+            },
+            itemBuilder: (_) => [
+              CheckedPopupMenuItem<SearchPanelPosition>(
+                value: SearchPanelPosition.top,
+                checked: _panelPosition == SearchPanelPosition.top,
+                child: const Text('上に配置（標準）'),
+              ),
+              CheckedPopupMenuItem<SearchPanelPosition>(
+                value: SearchPanelPosition.bottom,
+                checked: _panelPosition == SearchPanelPosition.bottom,
+                child: const Text('下に配置'),
+              ),
+            ],
+          ),
           if (kDebugMode)
             IconButton(
               key: const Key('open-api-diagnostics'),
@@ -98,34 +177,70 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
+            verticalDirection: _panelPosition == SearchPanelPosition.bottom
+                ? VerticalDirection.up
+                : VerticalDirection.down,
+
             children: [
-              Form(
-                key: _formKey,
-                child: TextFormField(
-                  controller: _input,
-                  decoration: const InputDecoration(labelText: 'キーワード'),
-                  textInputAction: TextInputAction.search,
-                  onFieldSubmitted: (_) => _submit(),
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? '検索キーワードを入力してください。'
-                      : null,
-                ),
-              ),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: busy ? null : _submit,
-                child: const Text('検索'),
-              ),
+              _searchControls(state, busy),
+
               if (state.query != null)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text('送信済みの検索語：${state.query}'),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    '送信済みの検索語：${state.query}',
+                    key: const Key('submitted-query-label'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ),
+
               Expanded(child: _content(state, viewedKeys)),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _resultCountLabel(
+    BuildContext context,
+    int displayedCount,
+    int initialTotalCount,
+  ) {
+    final format = MaterialLocalizations.of(context).formatDecimal;
+
+    return Text(
+      '${format(displayedCount)}件表示 / '
+      '初回総件数 ${format(initialTotalCount)}件',
+      key: const Key('search-result-count'),
+    );
+  }
+
+  Widget _searchControls(SearchState state, bool busy) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Form(
+          key: _formKey,
+          child: TextFormField(
+            controller: _input,
+            decoration: InputDecoration(
+              labelText: 'キーワード',
+              suffixIcon: IconButton(
+                key: const Key('search-submit-button'),
+                tooltip: '検索',
+                onPressed: busy ? null : _submit,
+                icon: const Icon(Icons.search),
+              ),
+            ),
+            textInputAction: TextInputAction.search,
+            onFieldSubmitted: (_) => _submit(),
+            validator: (value) => value == null || value.trim().isEmpty
+                ? '検索キーワードを入力してください。'
+                : null,
+          ),
+        ),
+      ],
     );
   }
 
@@ -194,10 +309,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (incompleteResults) const Text('検索結果が不完全な可能性があります。'),
-            Text(
-              '表示中：${items.length}件'
-              '（初回検索時の総件数：$totalCount件）',
-            ),
+            _resultCountLabel(context, items.length, totalCount),
             const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
@@ -209,54 +321,51 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   }
 
                   final repository = items[index];
-                  final numberStyle = Theme.of(context).textTheme.bodySmall;
-
-                  // GitHub検索結果の最大表示番号「1000.」に必要な幅を測定。
-                  final numberPainter = TextPainter(
-                    text: TextSpan(text: '1000.', style: numberStyle),
-                    textDirection: Directionality.of(context),
-                    textScaler: MediaQuery.textScalerOf(context),
-                    maxLines: 1,
-                  )..layout();
-
-                  final measuredWidth = numberPainter.width.ceilToDouble();
-                  numberPainter.dispose();
-
-                  final numberWidth = measuredWidth < 36 ? 36.0 : measuredWidth;
+                  final theme = Theme.of(context);
 
                   return ListTile(
                     key: ValueKey(repository.key),
                     onTap: () => _openDetail(repository),
-                    leading: SizedBox(
-                      width: numberWidth + 6 + 24,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: numberWidth,
-                            child: Text(
-                              '${index + 1}.',
-                              textAlign: TextAlign.right,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: numberStyle,
-                            ),
+
+                    title: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 番号は必要な幅だけ使用する。
+                        Text(
+                          '${index + 1}.',
+                          style: theme.textTheme.bodySmall,
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                        const SizedBox(width: 8),
+
+                        // リポジトリ情報は残りの横幅を使用する。
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(repository.name),
+                              Text(
+                                '${repository.fullName} / '
+                                '${repository.language ?? '未指定'}',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 6),
-                          const Icon(Icons.folder_outlined),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
+
+                    // 閲覧済みの表示は維持する。
                     trailing: viewedKeys.contains(repository.key.id)
                         ? const Icon(
                             Icons.check_circle_outline,
                             semanticLabel: '閲覧済み',
                           )
                         : null,
-                    title: Text(repository.name),
-                    subtitle: Text(
-                      '${repository.fullName} / ${repository.language ?? '未指定'}',
-                    ),
                   );
                 },
               ),
