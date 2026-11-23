@@ -27,7 +27,11 @@ void main() {
   late FakeGitHubRepositoryGateway fake;
   late List<RepositoryKey> issueKeys;
   late List<Completer<int>> issueRequests;
+  final issueButtonFinder = find.byKey(const Key('load-open-issues'));
 
+  final refreshButtonFinder = find.byKey(
+    const Key('refresh-repository-detail'),
+  );
   setUp(() {
     searches = [];
     keys = [];
@@ -62,7 +66,7 @@ void main() {
       ),
     );
     await tester.enterText(find.byType(TextFormField), 'submitted');
-    await tester.tap(find.widgetWithText(FilledButton, '検索'));
+    await tester.tap(find.byKey(const Key('search-submit-button')));
     await tester.pump();
     return tester.container();
   }
@@ -274,28 +278,46 @@ void main() {
     },
   );
 
-  testWidgets('closing a successful detail clears its cache before reopening', (
-    tester,
-  ) async {
+  testWidgets('DC04: 同じ詳細を開き直すたびにCoreから取得する', (tester) async {
     final container = await start(tester);
+
     final summary =
         (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    // 1回目は詳細APIを取得。
     await open(tester);
+
+    expect(keys, [summary.key]);
+    expect(requests, hasLength(1));
+
     requests.single.complete(
       RepositoryDetail(summary: summary, watcherCount: 8),
     );
+
     await tester.pump();
+
+    expect(find.text('Watcher数：8'), findsOneWidget);
+
+    // 詳細画面を閉じる。
     await back(tester);
+
+    // 詳細Providerは破棄される。
     expect(
       container.read(repositoryDetailProvider(summary.key).exists),
       isFalse,
     );
+
+    // 同じリポジトリを再び開く。
     await open(tester);
-    expect(keys, hasLength(2));
-    expect(find.textContaining('Watcher数：'), findsNothing);
+    await tester.pump();
+
+    expect(keys, [summary.key, summary.key]);
+    expect(find.text('詳細情報を取得中…'), findsOneWidget);
+    expect(find.text('Watcher数：8'), findsNothing);
     requests.last.complete(RepositoryDetail(summary: summary, watcherCount: 9));
     await tester.pump();
     expect(find.text('Watcher数：9'), findsOneWidget);
+    expect(issueRequests, isEmpty);
   });
 
   testWidgets('unexpected detail errors do not claim to be network failures', (
@@ -325,7 +347,7 @@ void main() {
         ),
       );
       await tester.enterText(find.byType(TextFormField), 'riverpod');
-      await tester.tap(find.widgetWithText(FilledButton, '検索'));
+      await tester.tap(find.byKey(const Key('search-submit-button')));
       await tester.pump();
       final container = tester.container();
       final searchState = container.read(searchControllerProvider);
@@ -363,11 +385,28 @@ void main() {
     expect(issueKeys, isEmpty);
     expect(find.text('Open Issue数（PR除外）：未取得'), findsOneWidget);
 
-    final button = find.widgetWithText(OutlinedButton, 'Issue数を取得（検索APIを1回使用）');
+    final button = issueButtonFinder;
 
     // 連続して押しても要求は1回だけ。
     await tester.tap(button);
+
+    // 1回目のタップ直後
+    expect(issueKeys, hasLength(1), reason: '1回目のタップ');
+
+    // 画面を再構築
+    await tester.pump();
+
+    // 取得中はボタンが無効になるはず
+    expect(
+      tester.widget<OutlinedButton>(button).onPressed,
+      isNull,
+      reason: '取得中はボタンを無効にする',
+    );
+
     await tester.tap(button);
+
+    // 2回目でも要求は増えないはず
+    expect(issueKeys, hasLength(1), reason: '2回目のタップ');
     await tester.pump();
 
     expect(issueKeys, [summary.key]);
@@ -399,7 +438,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     await tester.pump();
 
     issueRequests.single.completeError(
@@ -418,7 +457,7 @@ void main() {
     expect(issueKeys, hasLength(1));
 
     // 利用者が明示的に再試行する。
-    await tester.tap(find.text('Issue数を再試行（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     await tester.pump();
 
     expect(issueKeys, hasLength(2));
@@ -521,14 +560,14 @@ void main() {
 
     // 1. Fakeで検索・詳細画面を表示する。
     await tester.enterText(find.byType(TextFormField), 'submitted');
-    await tester.tap(find.widgetWithText(FilledButton, '検索'));
+    await tester.tap(find.byKey(const Key('search-submit-button')));
     await tester.pump();
 
     await tester.tap(find.text('repository-0'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('Issue数を取得（検索APIを1回使用）'), findsOneWidget);
+    expect(issueButtonFinder, findsOneWidget);
 
     // 2. 別のHTTP検索でGatewayのキューを塞ぐ。
     final holdingSearch = httpGateway.searchRepositories('queue-holder');
@@ -538,7 +577,7 @@ void main() {
     expect(sentPaths, ['/search/repositories']);
 
     // 3. Issue検索を要求する。まだ送信はできない。
-    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.tap(issueButtonFinder);
     expect(
       find.text('Issue数の取得中に問題が発生しました。', skipOffstage: false),
       findsNothing,
@@ -638,6 +677,281 @@ void main() {
     // この一連の処理ではIssue検索APIを使用しない。
     expect(issueKeys, isEmpty);
     expect(container.read(searchControllerProvider), same(state));
+  });
+
+  testWidgets('IC11: 詳細更新・画面再表示でもIssue数を保持', (tester) async {
+    final container = await start(tester);
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    // 1. 初回の詳細取得。
+    await open(tester);
+
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 8),
+    );
+    await tester.pump();
+
+    // 2. PR除外Issue数を明示取得。
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(issueKeys, [summary.key]);
+
+    issueRequests.single.complete(7);
+    await tester.pump();
+
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+    expect(find.textContaining('取得日時：'), findsOneWidget);
+
+    // 3. 詳細情報だけを手動更新。
+    final refreshButton = refreshButtonFinder;
+
+    await tester.ensureVisible(refreshButton);
+    await tester.tap(refreshButton);
+    await tester.pump();
+
+    expect(requests, hasLength(2));
+    expect(issueRequests, hasLength(1));
+
+    // 詳細取得中でもIssue数は残る。
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+
+    requests.last.complete(RepositoryDetail(summary: summary, watcherCount: 9));
+    await tester.pump();
+
+    expect(find.text('Watcher数：9'), findsOneWidget);
+
+    // PR除外Issue数は更新されない。
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+    expect(issueRequests, hasLength(1));
+
+    // 4. 開き直すと詳細だけを再取得し、Issue数・取得日時は表示を維持する。
+    await back(tester);
+    await open(tester);
+    await tester.pump();
+
+    expect(find.text('Watcher数：9'), findsNothing);
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+    expect(find.textContaining('取得日時：'), findsOneWidget);
+    expect(requests, hasLength(3));
+    requests.last.complete(
+      RepositoryDetail(summary: summary, watcherCount: 10),
+    );
+    await tester.pump();
+    expect(find.text('Watcher数：10'), findsOneWidget);
+    expect(issueRequests, hasLength(1));
+  });
+
+  testWidgets('IC13: 改名後は詳細APIで確認した名前をIssue検索に使用', (tester) async {
+    final container = await start(tester);
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    final renamedKey = RepositoryKey(
+      id: summary.key.id,
+      owner: 'renamed-owner',
+      name: 'renamed-repository',
+    );
+
+    await open(tester);
+
+    // 検索時と同じIDだが、詳細APIでは名前が変わっている。
+    requests.single.complete(
+      RepositoryDetail(
+        summary: RepositorySummary(
+          key: renamedKey,
+          avatarUrl: summary.avatarUrl,
+          language: summary.language,
+          starCount: summary.starCount,
+          forkCount: summary.forkCount,
+          openIssueAndPullRequestCount: summary.openIssueAndPullRequestCount,
+        ),
+        watcherCount: 8,
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('renamed-owner/renamed-repository'), findsOneWidget);
+
+    // ボタンを押すまではIssue検索しない。
+    expect(issueKeys, isEmpty);
+
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    // 古いowner/nameではなく詳細APIの新しい名前を使う。
+    expect(issueKeys, [renamedKey]);
+
+    issueRequests.single.complete(7);
+    await tester.pump();
+
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+  });
+
+  testWidgets('IC14: 旧名の再利用・詳細取得失敗では別IDの詳細を表示せずIssueを送らない', (tester) async {
+    final container = await start(tester);
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+    final issueButton = issueButtonFinder;
+
+    await open(tester);
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 8),
+    );
+    await tester.pump();
+    await back(tester);
+    await open(tester);
+    expect(keys, [summary.key, summary.key]);
+    expect(tester.widget<OutlinedButton>(issueButton).onPressed, isNull);
+
+    // 同じowner/nameを、現在は別のリポジトリIDが使っている。
+    requests.last.complete(
+      RepositoryDetail(
+        summary: RepositorySummary(
+          key: RepositoryKey(
+            id: summary.key.id + 1,
+            owner: summary.key.owner,
+            name: summary.key.name,
+          ),
+          avatarUrl: '',
+          language: 'Other',
+          starCount: 99,
+          forkCount: 0,
+          openIssueAndPullRequestCount: 77,
+        ),
+        watcherCount: 99,
+      ),
+    );
+    await tester.pump();
+    expect(find.text('検索時と異なるリポジトリが返されました。'), findsOneWidget);
+    expect(find.text('Watcher数：99'), findsNothing);
+    expect(
+      find.text('Open Issue＋PR数：${summary.openIssueAndPullRequestCount}'),
+      findsOneWidget,
+    );
+    expect(tester.widget<OutlinedButton>(issueButton).onPressed, isNull);
+
+    await tester.tap(find.text('再試行'));
+    await tester.pump();
+    requests.last.completeError(
+      const ApiFailure(kind: ApiFailureKind.network, safeMessage: '詳細取得失敗'),
+    );
+    await tester.pump();
+    expect(find.text('詳細取得失敗'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(issueButton).onPressed, isNull);
+    expect(issueKeys, isEmpty);
+  });
+
+  testWidgets('IC15: Issue取得と詳細更新は再描画前から両方向に排他する', (tester) async {
+    final container = await start(tester);
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+    await open(tester);
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 1),
+    );
+    await tester.pump();
+
+    final refresh = refreshButtonFinder;
+    final issue = issueButtonFinder;
+    final previousRefresh = tester.widget<OutlinedButton>(refresh).onPressed!;
+    await tester.tap(issue);
+    previousRefresh(); // 同じフレームのボタンも要求を追加できない。
+    await tester.pump();
+    expect(tester.widget<OutlinedButton>(refresh).onPressed, isNull);
+    expect(requests, hasLength(1));
+    issueRequests.single.complete(7);
+    await tester.pump();
+
+    final cache = container.read(openIssueCountCacheProvider);
+    final saved = cache.get(summary.key)!;
+    expect(saved.count, 7);
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+    final reload = issueButtonFinder;
+    final previousReload = tester.widget<OutlinedButton>(reload).onPressed!;
+    await tester.tap(refresh);
+    previousReload();
+    await tester.pump();
+    expect(tester.widget<OutlinedButton>(reload).onPressed, isNull);
+    expect(requests, hasLength(2));
+    expect(issueRequests, hasLength(1));
+
+    requests.last.complete(RepositoryDetail(summary: summary, watcherCount: 2));
+    await tester.pump();
+    expect(tester.widget<OutlinedButton>(reload).onPressed, isNotNull);
+    expect(cache.get(summary.key), same(saved));
+
+    await tester.tap(reload);
+    issueRequests.last.completeError(
+      const ApiFailure(kind: ApiFailureKind.network, safeMessage: 'Issue再取得失敗'),
+    );
+    await tester.pump();
+    expect(find.text('Issue再取得失敗'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(refresh).onPressed, isNotNull);
+    expect(cache.get(summary.key), same(saved));
+  });
+
+  testWidgets('IC16: 画面を閉じた後のIssue応答は以前の件数・取得日時を変更しない', (tester) async {
+    final container = await start(tester);
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+    final cache = container.read(openIssueCountCacheProvider)
+      ..put(summary.key, 5);
+    final saved = cache.get(summary.key);
+    await open(tester);
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 1),
+    );
+    await tester.pump();
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+    await back(tester);
+    await open(tester);
+    issueRequests.single.complete(99);
+    await tester.pump();
+    expect(cache.get(summary.key), same(saved));
+    expect(find.text('Open Issue数（PR除外）：5'), findsOneWidget);
+    expect(find.textContaining('取得日時：'), findsOneWidget);
+    expect(issueRequests, hasLength(1));
+  });
+
+  testWidgets('DL01: 狭い画面ではIssue情報とボタンを縦に並べる', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await start(tester);
+    await open(tester);
+
+    final info = find.text('Open Issue数（PR除外）：未取得');
+    final button = find.byKey(const Key('load-open-issues'));
+
+    expect(info, findsOneWidget);
+    expect(button, findsOneWidget);
+
+    expect(
+      tester.getTopLeft(button).dy,
+      greaterThan(tester.getBottomLeft(info).dy),
+    );
+  });
+
+  testWidgets('DL02: 広い画面ではIssue情報とボタンを左右に並べる', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(600, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await start(tester);
+    await open(tester);
+
+    final info = find.text('Open Issue数（PR除外）：未取得');
+    final button = find.byKey(const Key('load-open-issues'));
+
+    expect(
+      tester.getTopLeft(button).dx,
+      greaterThan(tester.getTopRight(info).dx),
+    );
   });
 }
 

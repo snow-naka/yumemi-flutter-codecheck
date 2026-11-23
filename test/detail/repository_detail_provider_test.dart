@@ -175,4 +175,26 @@ void main() {
       expect(detail.read().asData?.value.watcherCount, 8);
     },
   );
+
+  test('検索時のIDと異なる詳細応答を失敗として扱う', () async {
+    final summaries = resultPage(count: 2).items;
+    final provider = repositoryDetailProvider(summaries.first.key);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+
+    requests.single.complete(
+      RepositoryDetail(summary: summaries.last, watcherCount: 77),
+    );
+    await container.pump();
+
+    final error = subscription.read().asError!.error;
+    expect(
+      error,
+      isA<ApiFailure>().having(
+        (failure) => failure.kind,
+        'kind',
+        ApiFailureKind.invalidResponse,
+      ),
+    );
+  });
 }

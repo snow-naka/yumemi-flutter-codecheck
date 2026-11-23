@@ -1,12 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/api_failure.dart';
 import '../../models/repository_models.dart';
 import '../../providers.dart';
 
 final repositoryDetailProvider = FutureProvider.autoDispose
-    .family<RepositoryDetail, RepositoryKey>(
-      (ref, key) =>
-          ref.watch(githubRepositoryGatewayProvider).getRepository(key),
-      // Issue #3の暫定方針。エラー種別ごとの再試行はPhase 2で設計する。
-      retry: (retryCount, error) => null,
-    );
+    .family<RepositoryDetail, RepositoryKey>((ref, key) async {
+      final gateway = ref.watch(githubRepositoryGatewayProvider);
+      final detail = await gateway.getRepository(key);
+      if (detail.summary.key.id != key.id) {
+        throw const ApiFailure(
+          kind: ApiFailureKind.invalidResponse,
+          safeMessage: '検索時と異なるリポジトリが返されました。',
+        );
+      }
+      return detail;
+    }, retry: (retryCount, error) => null);

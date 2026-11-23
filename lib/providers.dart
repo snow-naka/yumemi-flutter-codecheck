@@ -9,6 +9,7 @@ import 'devtools/api_diagnostics.dart';
 import 'data/github_rate_limit_policy.dart';
 import 'data/github_repository_gateway.dart';
 import 'data/http_github_repository_gateway.dart';
+import 'features/detail/open_issue_count_cache.dart';
 
 final apiDiagnosticsProvider = Provider<InMemoryApiDiagnostics>((ref) {
   final store = InMemoryApiDiagnostics(maxEntries: 20);
@@ -42,4 +43,12 @@ final githubRepositoryGatewayProvider = Provider<GitHubRepositoryGateway>((
         ? ref.watch(apiDiagnosticsProvider)
         : const NoopApiDiagnosticsSink(),
   );
+});
+
+final openIssueCountCacheProvider = Provider<OpenIssueCountCache>((ref) {
+  final cache = OpenIssueCountCache();
+
+  ref.onDispose(cache.clear);
+
+  return cache;
 });
