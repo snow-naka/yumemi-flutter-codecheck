@@ -245,4 +245,79 @@ void main() {
     expect(await openAndClose(), 2);
     expect(requestCount, 2);
   });
+
+  test('DC07: 無効化直後の古い応答をキャッシュしない', () async {
+    final summary = resultPage().items.single;
+    final key = summary.key;
+    final cache = container.read(repositoryDetailCacheProvider);
+    final provider = repositoryDetailProvider(key);
+
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+
+    // 要求Aを開始。
+    expect(keys, [key]);
+    expect(requests, hasLength(1));
+
+    // Aの処理中にProviderを無効化。
+    container.invalidate(provider);
+
+    // この時点では新要求Bが始まっていない。
+    expect(keys, [key]);
+
+    // 古い要求Aを先に完了させる。
+    requests[0].complete(RepositoryDetail(summary: summary, watcherCount: 99));
+    await Future<void>.delayed(Duration.zero);
+
+    // 失効したAの値はキャッシュに入らない。
+    expect(cache.getFresh(key), isNull, reason: '無効化済みの要求Aをキャッシュしてはいけない');
+
+    // 新しい評価ではキャッシュを使わず要求Bが必要。
+    await container.pump();
+    expect(keys, [key, key]);
+
+    requests[1].complete(RepositoryDetail(summary: summary, watcherCount: 8));
+    await container.pump();
+
+    expect(subscription.read().asData?.value.watcherCount, 8);
+    expect(cache.getFresh(key)?.watcherCount, 8);
+  });
+
+  test('DC08: 新要求の成功後に古い応答が来ても上書きしない', () async {
+    final summary = resultPage().items.single;
+    final key = summary.key;
+    final cache = container.read(repositoryDetailCacheProvider);
+    final provider = repositoryDetailProvider(key);
+
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+
+    // 要求Aを開始。
+    expect(keys, [key]);
+
+    // Aの完了前に無効化して要求Bを開始。
+    container.invalidate(provider);
+    await container.pump();
+
+    expect(keys, [key, key]);
+    expect(requests, hasLength(2));
+
+    // 新しい要求Bが先に成功。
+    requests[1].complete(RepositoryDetail(summary: summary, watcherCount: 42));
+    await container.pump();
+
+    expect(subscription.read().asData?.value.watcherCount, 42);
+    expect(cache.getFresh(key)?.watcherCount, 42);
+
+    // その後、古い要求Aが成功しても影響しない。
+    requests[0].complete(RepositoryDetail(summary: summary, watcherCount: 99));
+    await container.pump();
+
+    expect(
+      subscription.read().asData?.value.watcherCount,
+      42,
+      reason: '画面のProvider値が古い応答に戻らない',
+    );
+    expect(cache.getFresh(key)?.watcherCount, 42, reason: 'キャッシュも新しい応答を維持する');
+  });
 }

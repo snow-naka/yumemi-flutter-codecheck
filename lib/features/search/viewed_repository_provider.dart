@@ -3,30 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/repository_models.dart';
 
 final viewedRepositoryProvider =
-    NotifierProvider<ViewedRepositoryController, Set<RepositoryKey>>(
+    NotifierProvider<ViewedRepositoryController, Set<int>>(
       ViewedRepositoryController.new,
     );
 
-class ViewedRepositoryController extends Notifier<Set<RepositoryKey>> {
+class ViewedRepositoryController extends Notifier<Set<int>> {
   @override
-  Set<RepositoryKey> build() {
-    return Set<RepositoryKey>.unmodifiable({});
-  }
+  Set<int> build() => const <int>{};
 
-  /// 詳細画面を開いたリポジトリを閲覧済みにする。
   void markViewed(RepositoryKey key) {
-    if (state.contains(key)) return;
+    if (state.contains(key.id)) return;
 
-    state = Set<RepositoryKey>.unmodifiable({...state, key});
+    state = Set<int>.unmodifiable({...state, key.id});
   }
 
-  /// 閲覧済みか判定する。
   bool isViewed(RepositoryKey key) {
-    return state.contains(key);
+    return state.contains(key.id);
   }
 
-  /// 閲覧履歴を明示的に消去する場合に使用。
   void clear() {
-    state = Set<RepositoryKey>.unmodifiable({});
+    state = const <int>{};
   }
 }

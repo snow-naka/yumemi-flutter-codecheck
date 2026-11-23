@@ -55,4 +55,16 @@ void main() {
 
     expect(cache.length, 0);
   });
+  test('IC12: 同じIDなら改名後もIssue数を再利用する', () {
+    final cache = OpenIssueCountCache();
+
+    const oldKey = RepositoryKey(id: 100, owner: 'org', name: 'old');
+
+    const renamedKey = RepositoryKey(id: 100, owner: 'org', name: 'renamed');
+
+    cache.put(oldKey, 7);
+
+    expect(cache.get(renamedKey)?.count, 7);
+    expect(cache.length, 1);
+  });
 }

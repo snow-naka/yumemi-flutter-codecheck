@@ -44,14 +44,18 @@ final class RepositoryDetailCache {
   }
 
   void put(RepositoryKey key, RepositoryDetail detail) {
+    final current = _now().toUtc();
+
     _entries.remove(key);
 
-    _entries[key] = _CacheEntry(
-      detail: detail,
-      expiresAt: _now().toUtc().add(ttl),
-    );
+    _entries[key] = _CacheEntry(detail: detail, expiresAt: current.add(ttl));
 
-    // 最も古く利用されたデータから削除する。
+    // 容量超過時は、LRUより先に期限切れデータを削除する。
+    if (_entries.length > capacity) {
+      _entries.removeWhere((_, entry) => !current.isBefore(entry.expiresAt));
+    }
+
+    // 有効なデータだけで容量超過している場合はLRUで削除。
     while (_entries.length > capacity) {
       _entries.remove(_entries.keys.first);
     }

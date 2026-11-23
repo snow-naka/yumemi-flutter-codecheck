@@ -17,12 +17,12 @@ final class OpenIssueCountCache {
 
   final DateTime Function() _now;
 
-  final Map<RepositoryKey, OpenIssueCountEntry> _entries = {};
+  final Map<int, OpenIssueCountEntry> _entries = {};
 
   int get length => _entries.length;
 
   OpenIssueCountEntry? get(RepositoryKey key) {
-    return _entries[key];
+    return _entries[key.id];
   }
 
   void put(RepositoryKey key, int count) {
@@ -30,7 +30,7 @@ final class OpenIssueCountCache {
       throw ArgumentError.value(count, 'count');
     }
 
-    _entries[key] = OpenIssueCountEntry(
+    _entries[key.id] = OpenIssueCountEntry(
       count: count,
       fetchedAt: _now().toUtc(),
     );

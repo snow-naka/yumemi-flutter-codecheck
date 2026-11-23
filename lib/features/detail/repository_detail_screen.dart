@@ -17,6 +17,10 @@ class RepositoryDetailScreen extends ConsumerWidget {
     final state = ref.watch(provider);
     final detail = state.isLoading ? null : state.asData?.value;
     final shownSummary = detail?.summary ?? summary;
+    final issueRequestKey =
+        detail != null && detail.summary.key.id == summary.key.id
+        ? detail.summary.key
+        : null;
     return Scaffold(
       appBar: AppBar(title: const Text('リポジトリ詳細')),
       body: SingleChildScrollView(
@@ -68,6 +72,7 @@ class RepositoryDetailScreen extends ConsumerWidget {
             _OpenIssueCountSection(
               key: ValueKey(summary.key),
               repositoryKey: summary.key,
+              requestKey: issueRequestKey,
             ),
           ],
         ),
@@ -111,9 +116,14 @@ class _OwnerAvatar extends StatelessWidget {
 }
 
 class _OpenIssueCountSection extends ConsumerStatefulWidget {
-  const _OpenIssueCountSection({super.key, required this.repositoryKey});
+  const _OpenIssueCountSection({
+    super.key,
+    required this.repositoryKey,
+    required this.requestKey,
+  });
 
   final RepositoryKey repositoryKey;
+  final RepositoryKey? requestKey;
 
   @override
   ConsumerState<_OpenIssueCountSection> createState() =>
@@ -127,6 +137,18 @@ class _OpenIssueCountSectionState
   int? _count;
   String? _error;
   DateTime? _fetchedAt;
+  int _requestGeneration = 0;
+
+  @override
+  void didUpdateWidget(covariant _OpenIssueCountSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.requestKey != widget.requestKey) {
+      ++_requestGeneration;
+      _loading = false;
+      _error = null;
+    }
+  }
 
   @override
   void initState() {
@@ -142,24 +164,34 @@ class _OpenIssueCountSectionState
   }
 
   Future<void> _load() async {
-    // 二重タップや、戻る操作後の要求を防ぐ。
-    if (_loading || _routePopped) return;
+    final target = widget.requestKey;
 
+    if (_loading || _routePopped || target == null) return;
+
+    final generation = ++_requestGeneration;
     setState(() {
       _loading = true;
       _error = null;
     });
-
     final gateway = ref.read(githubRepositoryGatewayProvider);
 
     try {
       final count = await gateway.getOpenIssueCount(
-        widget.repositoryKey,
-        isCanceled: () => !mounted || _routePopped,
+        target,
+        isCanceled: () =>
+            !mounted ||
+            _routePopped ||
+            generation != _requestGeneration ||
+            widget.requestKey != target,
       );
 
       // 画面を離れた場合はキャッシュも画面も更新しない。
-      if (!mounted || _routePopped) return;
+      if (!mounted ||
+          _routePopped ||
+          generation != _requestGeneration ||
+          widget.requestKey != target) {
+        return;
+      }
 
       // PR除外Issue数と取得日時をキャッシュへ保存。
       final cache = ref.read(openIssueCountCacheProvider);
@@ -173,7 +205,12 @@ class _OpenIssueCountSectionState
         _loading = false;
       });
     } on ApiFailure catch (failure) {
-      if (!mounted || _routePopped) return;
+      if (!mounted ||
+          _routePopped ||
+          generation != _requestGeneration ||
+          widget.requestKey != target) {
+        return;
+      }
 
       setState(() {
         // 前回取得済みのIssue数と取得日時は維持する。
@@ -181,7 +218,12 @@ class _OpenIssueCountSectionState
         _loading = false;
       });
     } catch (_) {
-      if (!mounted || _routePopped) return;
+      if (!mounted ||
+          _routePopped ||
+          generation != _requestGeneration ||
+          widget.requestKey != target) {
+        return;
+      }
 
       setState(() {
         _error = 'Issue数の取得中に問題が発生しました。';
@@ -228,7 +270,9 @@ class _OpenIssueCountSectionState
           if (_error != null) ...[const SizedBox(height: 8), Text(_error!)],
           const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: _loading ? null : _load,
+            onPressed: _loading || _routePopped || widget.requestKey == null
+                ? null
+                : _load,
             child: Text(buttonLabel),
           ),
         ],

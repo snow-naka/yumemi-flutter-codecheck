@@ -384,7 +384,24 @@ void main() {
 
     // 連続して押しても要求は1回だけ。
     await tester.tap(button);
+
+    // 1回目のタップ直後
+    expect(issueKeys, hasLength(1), reason: '1回目のタップ');
+
+    // 画面を再構築
+    await tester.pump();
+
+    // 取得中はボタンが無効になるはず
+    expect(
+      tester.widget<OutlinedButton>(button).onPressed,
+      isNull,
+      reason: '取得中はボタンを無効にする',
+    );
+
     await tester.tap(button);
+
+    // 2回目でも要求は増えないはず
+    expect(issueKeys, hasLength(1), reason: '2回目のタップ');
     await tester.pump();
 
     expect(issueKeys, [summary.key]);
@@ -716,6 +733,111 @@ void main() {
     // CoreもSearchも新しい要求は発生していない。
     expect(requests, hasLength(2));
     expect(issueRequests, hasLength(1));
+  });
+
+  testWidgets('IC13: 改名後は詳細APIで確認した名前をIssue検索に使用', (tester) async {
+    final container = await start(tester);
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    final renamedKey = RepositoryKey(
+      id: summary.key.id,
+      owner: 'renamed-owner',
+      name: 'renamed-repository',
+    );
+
+    await open(tester);
+
+    // 検索時と同じIDだが、詳細APIでは名前が変わっている。
+    requests.single.complete(
+      RepositoryDetail(
+        summary: RepositorySummary(
+          key: renamedKey,
+          avatarUrl: summary.avatarUrl,
+          language: summary.language,
+          starCount: summary.starCount,
+          forkCount: summary.forkCount,
+          openIssueAndPullRequestCount: summary.openIssueAndPullRequestCount,
+        ),
+        watcherCount: 8,
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('renamed-owner/renamed-repository'), findsOneWidget);
+
+    // ボタンを押すまではIssue検索しない。
+    expect(issueKeys, isEmpty);
+
+    await tester.tap(find.text('Issue数を取得（検索APIを1回使用）'));
+    await tester.pump();
+
+    // 古いowner/nameではなく詳細APIの新しい名前を使う。
+    expect(issueKeys, [renamedKey]);
+
+    issueRequests.single.complete(7);
+    await tester.pump();
+
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+  });
+
+  testWidgets('IC14: 詳細取得失敗・ID不一致ではIssue検索を禁止', (tester) async {
+    final container = await start(tester);
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    await open(tester);
+
+    final issueButton = find.widgetWithText(
+      OutlinedButton,
+      'Issue数を取得（検索APIを1回使用）',
+    );
+
+    // 詳細取得中はIssue検索を許可しない。
+    expect(tester.widget<OutlinedButton>(issueButton).onPressed, isNull);
+
+    // 詳細取得が失敗した場合も許可しない。
+    requests.single.completeError(
+      const ApiFailure(
+        kind: ApiFailureKind.network,
+        safeMessage: 'テスト用の詳細取得失敗',
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.widget<OutlinedButton>(issueButton).onPressed, isNull);
+
+    // 詳細を再試行する。
+    await tester.tap(find.text('再試行'));
+    await tester.pump();
+
+    // 仮に別IDの詳細が渡されても採用してIssue検索しない。
+    requests.last.complete(
+      RepositoryDetail(
+        summary: RepositorySummary(
+          key: RepositoryKey(
+            id: summary.key.id + 1000,
+            owner: 'other',
+            name: 'other-repository',
+          ),
+          avatarUrl: '',
+          language: 'Dart',
+          starCount: 0,
+          forkCount: 0,
+          openIssueAndPullRequestCount: 0,
+        ),
+        watcherCount: 0,
+      ),
+    );
+
+    await tester.pump();
+
+    expect(tester.widget<OutlinedButton>(issueButton).onPressed, isNull);
+
+    expect(issueKeys, isEmpty);
   });
 }
 

@@ -50,4 +50,17 @@ void main() {
 
     expect(container.read(viewedRepositoryProvider), isEmpty);
   });
+  test('VH06: 同じIDなら改名後も閲覧済みを維持する', () {
+    final container = ProviderContainer.test();
+    final controller = container.read(viewedRepositoryProvider.notifier);
+
+    const oldKey = RepositoryKey(id: 100, owner: 'org', name: 'old');
+
+    const renamedKey = RepositoryKey(id: 100, owner: 'org', name: 'renamed');
+
+    controller.markViewed(oldKey);
+
+    expect(controller.isViewed(renamedKey), isTrue);
+    expect(container.read(viewedRepositoryProvider), hasLength(1));
+  });
 }

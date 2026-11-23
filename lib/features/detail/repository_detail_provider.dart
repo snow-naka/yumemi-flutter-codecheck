@@ -14,11 +14,15 @@ final repositoryDetailProvider = FutureProvider.autoDispose
       }
 
       final gateway = ref.watch(githubRepositoryGatewayProvider);
+      var disposed = false;
 
+      ref.onDispose(() {
+        disposed = true;
+      });
       final detail = await gateway.getRepository(key);
 
       // 古い要求の完了によってキャッシュを上書きしない。
-      if (ref.mounted) {
+      if (!disposed && ref.mounted) {
         cache.put(key, detail);
       }
 

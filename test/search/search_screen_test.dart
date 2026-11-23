@@ -617,8 +617,8 @@ void main() {
 
     final viewed = tester.container().read(viewedRepositoryProvider);
 
-    expect(viewed.contains(page.items[0].key), isTrue);
-    expect(viewed.contains(page.items[1].key), isFalse);
+    expect(viewed.contains(page.items[0].key.id), isTrue);
+    expect(viewed.contains(page.items[1].key.id), isFalse);
 
     // 一覧へ戻る。
     // 詳細画面が表示されていることを確認する。
@@ -748,8 +748,8 @@ void main() {
 
     final viewed = tester.container().read(viewedRepositoryProvider);
 
-    expect(viewed.contains(firstPage.items[0].key), isTrue);
-    expect(viewed.contains(firstPage.items[1].key), isFalse);
+    expect(viewed.contains(firstPage.items[0].key.id), isTrue);
+    expect(viewed.contains(firstPage.items[1].key.id), isFalse);
 
     // 詳細画面から一覧へ戻る。
     Navigator.of(tester.element(detailFinder)).pop();
@@ -773,7 +773,7 @@ void main() {
       tester
           .container()
           .read(viewedRepositoryProvider)
-          .contains(firstPage.items[0].key),
+          .contains(firstPage.items[0].key.id),
       isTrue,
     );
 

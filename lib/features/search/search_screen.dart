@@ -129,7 +129,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _content(SearchState state, Set<RepositoryKey> viewedKeys) {
+  Widget _content(SearchState state, Set<int> viewedKeys) {
     return switch (state) {
       SearchIdle() => const Center(child: Text('キーワードを入力して検索してください。')),
 
@@ -231,7 +231,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         ],
                       ),
                     ),
-                    trailing: viewedKeys.contains(repository.key)
+                    trailing: viewedKeys.contains(repository.key.id)
                         ? const Icon(
                             Icons.check_circle_outline,
                             semanticLabel: '閲覧済み',
