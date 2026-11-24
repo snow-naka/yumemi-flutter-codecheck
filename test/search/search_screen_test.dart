@@ -1116,92 +1116,88 @@ void main() {
 
       expect(queries, [query]);
     });
-
-    for (final position in SearchPanelPosition.values) {
-      testWidgets('RT01: 画面回転時も検索状態と配置を維持する (${position.name})', (
-        tester,
-      ) async {
-        tester.view.devicePixelRatio = 1.0;
-        tester.view.physicalSize = const Size(390, 800);
-        tester.platformDispatcher.textScaleFactorTestValue = 2.0;
-
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-
-        layoutStore.saved = position;
-        await startWithLayout(tester);
-
-        await search(tester, 'flutter');
-        requests.single.complete(resultPage(count: 30));
-        await tester.pumpAndSettle();
-
-        final layout = find.byKey(const Key('search-main-layout'));
-        final panel = find.byKey(const Key('search-controls-panel'));
-        final list = find.byType(ListView);
-
-        // 縦画面では上下配置。
-        expect(tester.widget<Flex>(layout).direction, Axis.vertical);
-
-        // 未送信の入力を残しておく。
-        await tester.enterText(input, 'draft');
-        tester.testTextInput.hide();
-        await tester.pumpAndSettle();
-
-        final controller = tester.widget<ListView>(list).controller!;
-
-        controller.jumpTo(200);
-        await tester.pumpAndSettle();
-
-        final originalScrollPosition = controller.position;
-
-        // 横画面へ回転。
-        tester.view.physicalSize = const Size(800, 390);
-        await tester.pumpAndSettle();
-
-        expect(tester.widget<Flex>(layout).direction, Axis.horizontal);
-
-        final panelRect = tester.getRect(panel);
-        final listRect = tester.getRect(list);
-
-        if (position == SearchPanelPosition.top) {
-          expect(panelRect.right, lessThan(listRect.left));
-        } else {
-          expect(panelRect.left, greaterThan(listRect.right));
-        }
-
-        // 検索結果を表示できる高さが残っている。
-        expect(listRect.height, greaterThan(0));
-
-        // 入力内容と送信済み検索語を維持。
-        expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
-        expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
-
-        // スクロール状態を作り直さない。
-        expect(controller.position, same(originalScrollPosition));
-        expect(controller.offset, greaterThan(0));
-
-        // APIの追加要求や設定の書き込みは発生しない。
-        expect(queries, ['flutter']);
-        expect(layoutStore.writes, isEmpty);
-        expect(tester.takeException(), isNull);
-
-        // 再び縦画面へ戻す。
-        tester.view.physicalSize = const Size(390, 800);
-        await tester.pumpAndSettle();
-
-        expect(tester.widget<Flex>(layout).direction, Axis.vertical);
-
-        expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
-
-        expect(controller.position, same(originalScrollPosition));
-        expect(controller.offset, greaterThan(0));
-        expect(queries, ['flutter']);
-        expect(tester.takeException(), isNull);
-      });
-    }
   }
+  for (final position in SearchPanelPosition.values) {
+    testWidgets('RT01: 画面回転時も検索状態と配置を維持する (${position.name})', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(390, 800);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
 
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      layoutStore.saved = position;
+      await startWithLayout(tester);
+
+      await search(tester, 'flutter');
+      requests.single.complete(resultPage(count: 30));
+      await tester.pumpAndSettle();
+
+      final layout = find.byKey(const Key('search-main-layout'));
+      final panel = find.byKey(const Key('search-controls-panel'));
+      final list = find.byType(ListView);
+
+      // 縦画面では上下配置。
+      expect(tester.widget<Flex>(layout).direction, Axis.vertical);
+
+      // 未送信の入力を残しておく。
+      await tester.enterText(input, 'draft');
+      tester.testTextInput.hide();
+      await tester.pumpAndSettle();
+
+      final controller = tester.widget<ListView>(list).controller!;
+
+      controller.jumpTo(200);
+      await tester.pumpAndSettle();
+
+      final originalScrollPosition = controller.position;
+
+      // 横画面へ回転。
+      tester.view.physicalSize = const Size(800, 390);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<Flex>(layout).direction, Axis.horizontal);
+
+      final panelRect = tester.getRect(panel);
+      final listRect = tester.getRect(list);
+
+      if (position == SearchPanelPosition.top) {
+        expect(panelRect.right, lessThan(listRect.left));
+      } else {
+        expect(panelRect.left, greaterThan(listRect.right));
+      }
+
+      // 検索結果を表示できる高さが残っている。
+      expect(listRect.height, greaterThan(0));
+
+      // 入力内容と送信済み検索語を維持。
+      expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+      expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+
+      // スクロール状態を作り直さない。
+      expect(controller.position, same(originalScrollPosition));
+      expect(controller.offset, greaterThan(0));
+
+      // APIの追加要求や設定の書き込みは発生しない。
+      expect(queries, ['flutter']);
+      expect(layoutStore.writes, isEmpty);
+      expect(tester.takeException(), isNull);
+
+      // 再び縦画面へ戻す。
+      tester.view.physicalSize = const Size(390, 800);
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<Flex>(layout).direction, Axis.vertical);
+
+      expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+      expect(controller.position, same(originalScrollPosition));
+      expect(controller.offset, greaterThan(0));
+      expect(queries, ['flutter']);
+      expect(tester.takeException(), isNull);
+    });
+  }
   for (final position in SearchPanelPosition.values) {
     testWidgets('KB01: 横画面でキーボードを表示しても検索状態を維持する'
         ' (${position.name})', (tester) async {
