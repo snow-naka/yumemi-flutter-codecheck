@@ -1243,13 +1243,23 @@ void main() {
       },
     );
   }
-  for (final (position, locale) in localizedLayoutCases) {
+  for (final (position, locale, brightness) in [
+    for (final (position, locale) in localizedLayoutCases)
+      (position, locale, Brightness.light),
+
+    for (final position in SearchPanelPosition.values)
+      (position, const Locale('en', 'US'), Brightness.dark),
+  ]) {
     testWidgets('KB01: 横画面でキーボードを表示しても検索状態を維持する'
-        ' (${position.name}, ${locale.languageCode})', (tester) async {
+        ' (${position.name}, ${locale.languageCode}, ${brightness.name})', (
+      tester,
+    ) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(800, 390);
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      tester.platformDispatcher.platformBrightnessTestValue = brightness;
 
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetViewInsets);
@@ -1257,6 +1267,10 @@ void main() {
 
       layoutStore.saved = position;
       await startWithLayout(tester, locale: locale);
+
+      await tester.pumpAndSettle();
+
+      expect(Theme.of(tester.element(input)).brightness, brightness);
 
       await search(tester, 'flutter');
       requests.single.complete(resultPage(count: 30));
@@ -1268,7 +1282,7 @@ void main() {
 
       controller.jumpTo(200);
       await tester.pumpAndSettle();
-
+      expect(Theme.of(tester.element(input)).brightness, brightness);
       final originalPosition = controller.position;
       final originalOffset = controller.offset;
 
@@ -1282,7 +1296,7 @@ void main() {
       tester.view.viewInsets = const FakeViewPadding(bottom: 270);
 
       await tester.pumpAndSettle();
-
+      expect(Theme.of(tester.element(input)).brightness, brightness);
       // 入力に集中できる画面へ切り替わる。
       expect(find.byType(AppBar), findsNothing);
       expect(list, findsNothing);
@@ -1597,4 +1611,110 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  for (final brightness in [Brightness.light, Brightness.dark]) {
+    testWidgets('DM01: 端末設定に応じたテーマを使用する'
+        ' (${brightness.name})', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = brightness;
+
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
+      await startWithLayout(tester);
+      await tester.pumpAndSettle();
+
+      final context = tester.element(input);
+      final theme = Theme.of(context);
+
+      // 実際に画面へ適用されたテーマを確認する。
+      expect(theme.brightness, brightness);
+      expect(theme.colorScheme.brightness, brightness);
+
+      // テーマが変わっても検索画面を表示できる。
+      expect(find.text('リポジトリ検索'), findsOneWidget);
+      expect(find.text('キーワード'), findsOneWidget);
+
+      expect(find.text('キーワードを入力して検索してください。'), findsOneWidget);
+
+      expect(submit.hitTestable(), findsOneWidget);
+
+      // 起動時に不要なAPI通信や設定保存を行わない。
+      expect(queries, isEmpty);
+      expect(layoutStore.writes, isEmpty);
+
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('DM02: テーマ変更時も検索状態と入力内容を維持する', (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
+    await startWithLayout(tester);
+
+    Brightness currentBrightness() =>
+        Theme.of(tester.element(input)).brightness;
+
+    expect(currentBrightness(), Brightness.light);
+
+    // 検索を開始する。
+    await search(tester, 'flutter');
+
+    expect(find.text('検索中…'), findsOneWidget);
+    expect(requests, hasLength(1));
+
+    // 検索中にダークモードへ変更。
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+
+    // インジケーターが動いているためpumpAndSettleは使わない。
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(currentBrightness(), Brightness.dark);
+    expect(find.text('検索中…'), findsOneWidget);
+    expect(queries, ['flutter']);
+    expect(requests, hasLength(1));
+
+    // テーマ変更前に開始した検索を完了させる。
+    requests.single.complete(resultPage(count: 30));
+    await tester.pumpAndSettle();
+
+    expect(find.text('repository-0'), findsOneWidget);
+    expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+
+    // 未送信の入力を保持する。
+    await tester.enterText(input, 'draft');
+    tester.testTextInput.hide();
+    await tester.pumpAndSettle();
+
+    final list = find.byType(ListView);
+    final controller = tester.widget<ListView>(list).controller!;
+
+    controller.jumpTo(200);
+    await tester.pumpAndSettle();
+
+    final originalOffset = controller.offset;
+    expect(originalOffset, greaterThan(0));
+
+    // ライトモードへ戻す。
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+
+    await tester.pumpAndSettle();
+
+    expect(currentBrightness(), Brightness.light);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+    expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+
+    expect(tester.widget<ListView>(list).controller, same(controller));
+
+    expect(controller.offset, closeTo(originalOffset, 0.01));
+
+    // テーマ変更による追加通信や設定保存は発生しない。
+    expect(queries, ['flutter']);
+    expect(requests, hasLength(1));
+    expect(layoutStore.writes, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
 }
