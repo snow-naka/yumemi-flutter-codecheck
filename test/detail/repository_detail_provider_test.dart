@@ -184,11 +184,17 @@ void main() {
     final error = subscription.read().asError!.error;
     expect(
       error,
-      isA<ApiFailure>().having(
-        (failure) => failure.kind,
-        'kind',
-        ApiFailureKind.invalidResponse,
-      ),
+      isA<ApiFailure>()
+          .having(
+            (failure) => failure.kind,
+            'kind',
+            ApiFailureKind.invalidResponse,
+          )
+          .having(
+            (failure) => failure.reason,
+            'reason',
+            ApiFailureReason.repositoryMismatch,
+          ),
     );
   });
 }

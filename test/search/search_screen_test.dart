@@ -322,6 +322,28 @@ void main() {
     expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
     expect(find.text('追加読み込みを再試行'), findsOneWidget);
 
+    // 追加読み込み失敗中に英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Failed to communicate with GitHub.'), findsOneWidget);
+    expect(find.text('Retry loading more'), findsOneWidget);
+    expect(find.text('repository-0'), findsOneWidget);
+    expect(find.text('repository-1'), findsOneWidget);
+    expect(find.text('Showing 2 / Initial total: 3'), findsOneWidget);
+
+    expect(requests, hasLength(2));
+
+    // 日本語へ戻して既存の再試行テストを続ける。
+    tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
+    expect(find.text('追加読み込みを再試行'), findsOneWidget);
+    expect(requests, hasLength(2));
+
     // 再試行する
     await tester.tap(find.text('追加読み込みを再試行'));
     await tester.pump();
@@ -1442,6 +1464,67 @@ void main() {
     expect(find.text('検索キーワードを入力してください。'), findsNothing);
 
     expect(queries, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LE02: 検索エラーを言語変更後も保持して再試行できる', (tester) async {
+    await startWithLayout(tester);
+
+    await search(tester, 'flutter');
+
+    requests.single.completeError(
+      const ApiFailure(
+        kind: ApiFailureKind.rateLimited,
+        reason: ApiFailureReason.blockedBeforeSend,
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    const jaMessage =
+        'GitHubへの送信を一時停止しています。'
+        '再試行可能な時刻は不明です。';
+
+    const enMessage =
+        'Requests to GitHub are temporarily paused. '
+        'The retry time is unknown.';
+
+    expect(find.text(jaMessage), findsOneWidget);
+    expect(find.text('再試行'), findsOneWidget);
+
+    // 未送信の入力も保持する。
+    await tester.enterText(input, 'draft');
+
+    // エラー表示中に英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text(enMessage), findsOneWidget);
+    expect(find.text(jaMessage), findsNothing);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Submitted query: flutter'), findsOneWidget);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+    // 言語変更だけでは再検索しない。
+    expect(queries, ['flutter']);
+    expect(layoutStore.writes, isEmpty);
+
+    // 利用者による明示的な再試行。
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+
+    expect(queries, ['flutter', 'flutter']);
+    expect(find.text(enMessage), findsNothing);
+
+    requests.last.complete(resultPage());
+    await tester.pumpAndSettle();
+
+    expect(find.text('repository-0'), findsOneWidget);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
     expect(tester.takeException(), isNull);
   });
 }

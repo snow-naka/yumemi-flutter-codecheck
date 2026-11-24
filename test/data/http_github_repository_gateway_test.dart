@@ -160,7 +160,8 @@ void main() {
         throwsA(
           isA<ApiFailure>()
               .having((e) => e.kind, 'kind ($status)', expectedKind)
-              .having((e) => e.httpStatus, 'httpStatus', status),
+              .having((e) => e.httpStatus, 'httpStatus', status)
+              .having((e) => e.reason, 'reason', isNull),
         ),
       );
 
@@ -307,16 +308,52 @@ void main() {
     await expectLater(
       gateway.searchRepositories('flutter', page: 35, perPage: 30),
       throwsA(
-        isA<ApiFailure>().having(
-          (e) => e.kind,
-          'kind',
-          ApiFailureKind.invalidRequest,
-        ),
+        isA<ApiFailure>()
+            .having((e) => e.kind, 'kind', ApiFailureKind.invalidRequest)
+            .having(
+              (e) => e.reason,
+              'reason',
+              ApiFailureReason.invalidSearchCondition,
+            ),
       ),
     );
 
     expect(requestCount, 0);
     client.close();
+  });
+
+  test('ER02: 不正なリポジトリ指定ではHTTP送信せず原因を設定する', () async {
+    var requestCount = 0;
+
+    final client = MockClient((_) async {
+      requestCount++;
+      throw StateError('HTTP request must not be sent');
+    });
+    addTearDown(client.close);
+
+    final gateway = HttpGitHubRepositoryGateway(
+      client: client,
+      policy: GitHubRateLimitPolicy(),
+      now: () => now,
+    );
+
+    await expectLater(
+      gateway.getRepository(
+        const RepositoryKey(id: 0, owner: 'sample', name: 'example'),
+      ),
+      throwsA(
+        isA<ApiFailure>()
+            .having((e) => e.kind, 'kind', ApiFailureKind.invalidRequest)
+            .having(
+              (e) => e.reason,
+              'reason',
+              ApiFailureReason.invalidRepositoryKey,
+            )
+            .having((e) => e.httpStatus, 'httpStatus', isNull),
+      ),
+    );
+
+    expect(requestCount, 0);
   });
 
   test('HG09: incomplete_resultsを保持する', () async {

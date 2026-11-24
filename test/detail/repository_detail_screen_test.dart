@@ -1399,6 +1399,177 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+  testWidgets('LE03: 詳細取得エラーの言語変更と再試行', (tester) async {
+    final container = await start(tester);
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    await open(tester);
+
+    requests.single.completeError(
+      const ApiFailure(
+        kind: ApiFailureKind.invalidResponse,
+        reason: ApiFailureReason.repositoryMismatch,
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('検索時と異なるリポジトリが返されました。'), findsOneWidget);
+
+    // 詳細取得失敗中に英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('The returned repository differs from the search result.'),
+      findsOneWidget,
+    );
+
+    expect(find.text('検索時と異なるリポジトリが返されました。'), findsNothing);
+
+    expect(find.text(summary.name), findsOneWidget);
+
+    final retry = find.byKey(const Key('retry-repository-detail'));
+
+    expectAccessibleButton(
+      tester,
+      retry,
+      visibleText: 'Retry',
+      semanticLabel: 'Retry loading repository details',
+    );
+
+    // 言語変更による追加通信はない。
+    expect(keys, [summary.key]);
+    expect(issueKeys, isEmpty);
+
+    // 詳細取得に失敗している間はIssue取得もできない。
+    expect(tester.widget<OutlinedButton>(issueButtonFinder).onPressed, isNull);
+
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pump();
+
+    expect(keys, [summary.key, summary.key]);
+
+    requests.last.complete(RepositoryDetail(summary: summary, watcherCount: 8));
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Watchers: 8'), findsOneWidget);
+
+    expect(
+      find.text('The returned repository differs from the search result.'),
+      findsNothing,
+    );
+
+    expect(issueKeys, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final (label, error, jaMessage, enMessage) in [
+    (
+      'API failure',
+      const ApiFailure(kind: ApiFailureKind.network),
+      'GitHubとの通信に失敗しました。',
+      'Failed to communicate with GitHub.',
+    ),
+    (
+      'unexpected failure',
+      StateError('INTERNAL_ISSUE_ERROR'),
+      'Issue数の取得中に問題が発生しました。',
+      'An unexpected error occurred while fetching the issue count.',
+    ),
+  ]) {
+    testWidgets('LE04: Issue再取得失敗後の言語変更とキャッシュ保持 ($label)', (tester) async {
+      final container = await start(tester);
+
+      final summary = (container.read(
+        searchControllerProvider,
+      ) as SearchResults).items.first;
+
+      await open(tester);
+
+      requests.single.complete(
+        RepositoryDetail(summary: summary, watcherCount: 8),
+      );
+
+      await tester.pumpAndSettle();
+
+      // 最初のIssue取得は成功させる。
+      await tester.ensureVisible(issueButtonFinder);
+      await tester.tap(issueButtonFinder);
+      await tester.pump();
+
+      issueRequests.single.complete(7);
+      await tester.pumpAndSettle();
+
+      final cache = container.read(openIssueCountCacheProvider);
+      final saved = cache.get(summary.key);
+
+      expect(saved, isNotNull);
+      expect(saved!.count, 7);
+
+      // Issue再取得時に失敗させる。
+      await tester.ensureVisible(issueButtonFinder);
+      await tester.tap(issueButtonFinder);
+      await tester.pump();
+
+      issueRequests.last.completeError(error);
+      await tester.pumpAndSettle();
+
+      expect(find.text(jaMessage), findsOneWidget);
+      expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+      expect(find.textContaining('取得日時：'), findsOneWidget);
+
+      expect(cache.get(summary.key), same(saved));
+
+      // エラー表示中に英語へ変更。
+      tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+      await tester.pumpAndSettle();
+
+      expect(find.text(enMessage), findsOneWidget);
+      expect(find.text(jaMessage), findsNothing);
+
+      // 前回取得済みの値は保持する。
+      expect(find.text('Open issues (excluding PRs): 7'), findsOneWidget);
+      expect(find.textContaining('Fetched: '), findsOneWidget);
+      expect(cache.get(summary.key), same(saved));
+
+      // 元の例外の内容を画面に露出しない。
+      expect(find.textContaining('INTERNAL_ISSUE_ERROR'), findsNothing);
+
+      expectAccessibleButton(
+        tester,
+        issueButtonFinder,
+        visibleText: 'Fetch again',
+        semanticLabel: 'Fetch open issue count again',
+      );
+
+      // 言語変更では通信を追加しない。
+      expect(keys, [summary.key]);
+      expect(issueKeys, [summary.key, summary.key]);
+
+      // 明示的な再取得で正常状態へ戻る。
+      await tester.ensureVisible(issueButtonFinder);
+      await tester.tap(issueButtonFinder);
+      await tester.pump();
+
+      issueRequests.last.complete(9);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open issues (excluding PRs): 9'), findsOneWidget);
+      expect(find.text(enMessage), findsNothing);
+      expect(cache.get(summary.key)!.count, 9);
+
+      expect(keys, hasLength(1));
+      expect(issueKeys, hasLength(3));
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 class _IssueViaHttpGateway extends FakeGitHubRepositoryGateway {

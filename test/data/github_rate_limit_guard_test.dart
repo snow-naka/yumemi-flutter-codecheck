@@ -28,6 +28,11 @@ void main() {
       throwsA(
         isA<ApiFailure>()
             .having((e) => e.kind, 'kind', ApiFailureKind.rateLimited)
+            .having(
+              (e) => e.reason,
+              'reason',
+              ApiFailureReason.blockedBeforeSend,
+            )
             .having((e) => e.retryAt, 'retryAt', until),
       ),
     );
@@ -47,6 +52,11 @@ void main() {
       throwsA(
         isA<ApiFailure>()
             .having((e) => e.kind, 'kind', ApiFailureKind.rateLimited)
+            .having(
+              (e) => e.reason,
+              'reason',
+              ApiFailureReason.blockedBeforeSend,
+            )
             .having((e) => e.retryAt, 'retryAt', isNull),
       ),
     );
