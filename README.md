@@ -176,6 +176,19 @@ Artifactの保存期間は14日間。
 
 APKは開発用のDebug署名鍵を使用した検証用成果物であり、正式なストア配布用ではない。署名鍵が異なる環境で生成したAPKは、既存アプリに上書きできない場合がある。
 
+### アプリ名・アイコン
+
+- アプリ表示名：Repo Search
+- Android・iOS共通のリポジトリ検索を表す独自アイコンを使用する。
+- Android 8.0以降ではAdaptive Iconに対応する。
+- Application ID、Bundle Identifier、Dartパッケージ名は変更していない。
+
+アイコンの原本は`design/app-icon.svg`に保持し、Android・iOS用のPNGは`design/generate_icons.py`で生成する。
+
+AndroidのAdaptive Icon用VectorDrawableは別途管理しているため、デザインを変更する際は併せて更新する必要がある。
+
+Androidエミュレーターで表示名とアイコンの表示を確認済み。iOSでの実際の表示は未検証。
+
 ### 検証実績
 
 2026-11-24に、featureブランチへのPush時の品質検証、PR作成時の品質検証およびAndroid Releaseビルドの成功を確認した。

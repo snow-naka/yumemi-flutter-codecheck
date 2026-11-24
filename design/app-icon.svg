@@ -1,0 +1,17 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 80 80">
+
+  <rect width="80" height="80" fill="#53428B"></rect>
+
+  <g transform="translate(6 6) scale(0.85)" stroke="#FFFFFF" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+
+    <rect x="13" y="12" width="34" height="46" rx="5"></rect>
+
+    <path d="M22 12 V58 M13 49 H32"></path>
+
+    <circle cx="48" cy="45" r="13" fill="#53428B"></circle>
+
+    <path d="M57 54 L67 64"></path>
+
+  </g>
+</svg>
