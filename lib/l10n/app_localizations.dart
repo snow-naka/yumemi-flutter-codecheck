@@ -296,6 +296,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'An unexpected error occurred during the search.'**
   String get unexpectedSearchError;
+
+  /// No description provided for @detailTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Repository details'**
+  String get detailTitle;
+
+  /// No description provided for @repositoryLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Language: {language}'**
+  String repositoryLanguage(String language);
+
+  /// No description provided for @starCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Stars: {count}'**
+  String starCount(int count);
+
+  /// No description provided for @watcherCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Watchers: {count}'**
+  String watcherCount(int count);
+
+  /// No description provided for @forkCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Forks: {count}'**
+  String forkCount(int count);
+
+  /// No description provided for @openIssueAndPullRequestCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Open issues + PRs: {count}'**
+  String openIssueAndPullRequestCount(int count);
+
+  /// No description provided for @detailLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading repository details…'**
+  String get detailLoading;
+
+  /// No description provided for @unexpectedDetailError.
+  ///
+  /// In en, this message translates to:
+  /// **'An unexpected error occurred while loading repository details.'**
+  String get unexpectedDetailError;
+
+  /// No description provided for @retryDetailSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry loading repository details'**
+  String get retryDetailSemantics;
+
+  /// No description provided for @ownerAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Repository owner avatar'**
+  String get ownerAvatar;
+
+  /// No description provided for @openIssuesLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Open issues (excluding PRs): Fetching…'**
+  String get openIssuesLoading;
+
+  /// No description provided for @openIssueCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Open issues (excluding PRs): {count}'**
+  String openIssueCount(int count);
+
+  /// No description provided for @openIssuesNotFetched.
+  ///
+  /// In en, this message translates to:
+  /// **'Open issues (excluding PRs): Not fetched'**
+  String get openIssuesNotFetched;
+
+  /// No description provided for @refresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get refresh;
+
+  /// No description provided for @fetch.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch'**
+  String get fetch;
+
+  /// No description provided for @fetchAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch again'**
+  String get fetchAgain;
+
+  /// No description provided for @refreshDetailSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh repository details'**
+  String get refreshDetailSemantics;
+
+  /// No description provided for @fetchOpenIssuesSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch open issue count'**
+  String get fetchOpenIssuesSemantics;
+
+  /// No description provided for @refetchOpenIssuesSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch open issue count again'**
+  String get refetchOpenIssuesSemantics;
+
+  /// No description provided for @retryOpenIssuesSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry fetching open issue count'**
+  String get retryOpenIssuesSemantics;
+
+  /// No description provided for @issueFetchedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetched: {dateTime} (device time)'**
+  String issueFetchedAt(String dateTime);
+
+  /// No description provided for @unexpectedIssueError.
+  ///
+  /// In en, this message translates to:
+  /// **'An unexpected error occurred while fetching the issue count.'**
+  String get unexpectedIssueError;
+
+  /// No description provided for @openIssuesApiNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.'**
+  String get openIssuesApiNotice;
 }
 
 class _AppLocalizationsDelegate

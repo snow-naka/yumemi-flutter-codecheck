@@ -44,5 +44,29 @@
   "githubSearchLimitReached": "GitHub検索APIの取得上限（1,000件）に達しました。",
   "noMoreResults": "これ以上の結果はありません。",
 
-  "unexpectedSearchError": "検索処理中に問題が発生しました。"
+  "unexpectedSearchError": "検索処理中に問題が発生しました。",
+
+  "detailTitle": "リポジトリ詳細",
+  "repositoryLanguage": "言語：{language}",
+  "starCount": "Star数：{count}",
+  "watcherCount": "Watcher数：{count}",
+  "forkCount": "Fork数：{count}",
+  "openIssueAndPullRequestCount": "Open Issue＋PR数：{count}",
+  "detailLoading": "詳細情報を取得中…",
+  "unexpectedDetailError": "詳細情報の処理中に問題が発生しました。",
+  "retryDetailSemantics": "リポジトリ詳細情報の取得を再試行",
+  "ownerAvatar": "オーナーアイコン",
+  "openIssuesLoading": "Open Issue数（PR除外）：取得中…",
+  "openIssueCount": "Open Issue数（PR除外）：{count}",
+  "openIssuesNotFetched": "Open Issue数（PR除外）：未取得",
+  "refresh": "更新",
+  "fetch": "取得",
+  "fetchAgain": "再取得",
+  "refreshDetailSemantics": "リポジトリ詳細情報を更新",
+  "fetchOpenIssuesSemantics": "Open Issue数を取得",
+  "refetchOpenIssuesSemantics": "Open Issue数を再取得",
+  "retryOpenIssuesSemantics": "Open Issue数の取得を再試行",
+  "issueFetchedAt": "取得日時：{dateTime}（端末時刻）",
+  "unexpectedIssueError": "Issue数の取得中に問題が発生しました。",
+  "openIssuesApiNotice": "※ Open Issue数の取得・再取得・再試行には、操作ごとにGitHub Search APIを1回使用します。APIのレート制限に影響します。"
 }

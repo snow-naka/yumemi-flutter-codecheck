@@ -17,6 +17,7 @@ import 'package:yumemi_app/main.dart';
 import 'package:yumemi_app/models/api_failure.dart';
 import 'package:yumemi_app/models/repository_models.dart';
 import 'package:yumemi_app/providers.dart';
+import 'package:yumemi_app/l10n/app_localizations.dart';
 
 import '../search/search_test_support.dart';
 
@@ -74,16 +75,27 @@ void main() {
     expect(tester.getSemantics(button).label, semanticLabel);
   }
 
-  Future<ProviderContainer> start(WidgetTester tester) async {
+  Future<ProviderContainer> start(
+    WidgetTester tester, {
+    Locale locale = const Locale('ja', 'JP'),
+  }) async {
+    tester.platformDispatcher.localesTestValue = [locale];
+
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [githubRepositoryGatewayProvider.overrideWithValue(fake)],
         child: const MyApp(),
       ),
     );
+
     await tester.enterText(find.byType(TextFormField), 'submitted');
+
     await tester.tap(find.byKey(const Key('search-submit-button')));
+
     await tester.pump();
+
     return tester.container();
   }
 
@@ -145,7 +157,15 @@ void main() {
         overrides: [
           githubRepositoryGatewayProvider.overrideWithValue(avatarFake),
         ],
-        child: MaterialApp(home: RepositoryDetailScreen(summary: summary)),
+        child: MaterialApp(
+          locale: const Locale('ja'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: RepositoryDetailScreen(summary: summary),
+        ),
       ),
     );
   }
@@ -219,8 +239,6 @@ void main() {
   testWidgets(
     'return preserves submitted query, draft, results and exact scroll offset',
     (tester) async {
-      tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
-
       addTearDown(tester.platformDispatcher.clearLocalesTestValue);
       final container = await start(tester);
       await tester.scrollUntilVisible(
@@ -573,6 +591,9 @@ void main() {
 
     final gateway = _IssueViaHttpGateway(httpGateway);
 
+    tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
+
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [githubRepositoryGatewayProvider.overrideWithValue(gateway)],
@@ -1126,6 +1147,273 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('LD01: 英語環境で詳細情報とIssue数を表示できる', (tester) async {
+    final container = await start(tester, locale: const Locale('en', 'US'));
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    await open(tester);
+
+    expect(find.text('Repository details'), findsOneWidget);
+    expect(find.text('Language: Dart'), findsOneWidget);
+    expect(find.text('Loading repository details…'), findsOneWidget);
+
+    final updated = RepositorySummary(
+      key: summary.key,
+      avatarUrl: '',
+      language: 'Dart',
+      starCount: 12345,
+      forkCount: 1234,
+      openIssueAndPullRequestCount: 3456,
+    );
+
+    requests.single.complete(
+      RepositoryDetail(summary: updated, watcherCount: 2345),
+    );
+
+    await tester.pumpAndSettle();
+
+    // 英語表示と数値の桁区切り。
+    expect(find.text('Stars: 12,345'), findsOneWidget);
+    expect(find.text('Watchers: 2,345'), findsOneWidget);
+    expect(find.text('Forks: 1,234'), findsOneWidget);
+    expect(find.text('Open issues + PRs: 3,456'), findsOneWidget);
+
+    expect(
+      find.text('Open issues (excluding PRs): Not fetched'),
+      findsOneWidget,
+    );
+
+    // 表示文言と読み上げ文言を検証。
+    expectAccessibleButton(
+      tester,
+      refreshButtonFinder,
+      visibleText: 'Refresh',
+      semanticLabel: 'Refresh repository details',
+    );
+
+    expectAccessibleButton(
+      tester,
+      issueButtonFinder,
+      visibleText: 'Fetch',
+      semanticLabel: 'Fetch open issue count',
+    );
+
+    // Issue数を取得。
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(find.text('Open issues (excluding PRs): Fetching…'), findsOneWidget);
+
+    expect(
+      tester.widget<OutlinedButton>(refreshButtonFinder).onPressed,
+      isNull,
+    );
+
+    issueRequests.single.complete(12000);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open issues (excluding PRs): 12,000'), findsOneWidget);
+
+    expect(find.textContaining('Fetched: '), findsOneWidget);
+    expect(find.textContaining('(device time)'), findsOneWidget);
+
+    expectAccessibleButton(
+      tester,
+      issueButtonFinder,
+      visibleText: 'Fetch again',
+      semanticLabel: 'Fetch open issue count again',
+    );
+
+    // API利用上の注意書きも英語で表示。
+    final notice = tester.widget<Text>(
+      find.byKey(const Key('open-issues-api-notice')),
+    );
+
+    expect(
+      notice.data,
+      contains('one GitHub Search API request per operation'),
+    );
+
+    expect(keys, [summary.key]);
+    expect(issueKeys, [summary.key]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LD02: 英語環境でIssue取得失敗後に再試行できる', (tester) async {
+    final container = await start(tester, locale: const Locale('en', 'US'));
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    await open(tester);
+
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 8),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    // Issue数の取得に失敗。
+    issueRequests.single.completeError(
+      const ApiFailure(
+        kind: ApiFailureKind.network,
+        safeMessage: 'Test issue request failure.',
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Open issues (excluding PRs): Not fetched'),
+      findsOneWidget,
+    );
+
+    expectAccessibleButton(
+      tester,
+      issueButtonFinder,
+      visibleText: 'Retry',
+      semanticLabel: 'Retry fetching open issue count',
+    );
+
+    expect(issueKeys, [summary.key]);
+
+    // 明示的に再試行する。
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(find.text('Open issues (excluding PRs): Fetching…'), findsOneWidget);
+
+    expect(issueKeys, [summary.key, summary.key]);
+
+    // 0件は未取得ではなく正常な取得結果として扱う。
+    issueRequests.last.complete(0);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open issues (excluding PRs): 0'), findsOneWidget);
+
+    expect(find.text('Open issues (excluding PRs): Not fetched'), findsNothing);
+
+    expect(find.text('Test issue request failure.'), findsNothing);
+
+    expectAccessibleButton(
+      tester,
+      issueButtonFinder,
+      visibleText: 'Fetch again',
+      semanticLabel: 'Fetch open issue count again',
+    );
+
+    expect(keys, [summary.key]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LD03: 詳細・Issue取得中の言語変更でも状態を維持する', (tester) async {
+    final container = await start(tester);
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    await open(tester);
+
+    expect(find.text('リポジトリ詳細'), findsOneWidget);
+    expect(find.text('詳細情報を取得中…'), findsOneWidget);
+
+    // 詳細取得中に英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    // 詳細取得中はインジケーターが動き続けるため、
+    // pumpAndSettleは使用しない。
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Repository details'), findsOneWidget);
+    expect(find.text('Loading repository details…'), findsOneWidget);
+
+    expect(keys, [summary.key]);
+
+    // 言語変更前に開始した要求を完了させる。
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 8),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Watchers: 8'), findsOneWidget);
+
+    // Issue数の取得を開始。
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(find.text('Open issues (excluding PRs): Fetching…'), findsOneWidget);
+
+    // Issue取得中に日本語へ戻す。
+    tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Open Issue数（PR除外）：取得中…'), findsOneWidget);
+
+    // 言語変更によって排他制御が解除されない。
+    expect(tester.widget<OutlinedButton>(issueButtonFinder).onPressed, isNull);
+    expect(
+      tester.widget<OutlinedButton>(refreshButtonFinder).onPressed,
+      isNull,
+    );
+
+    expect(keys, [summary.key]);
+    expect(issueKeys, [summary.key]);
+
+    // 言語変更前のIssue要求を完了させる。
+    issueRequests.single.complete(7);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+
+    final cache = container.read(openIssueCountCacheProvider);
+    final saved = cache.get(summary.key);
+
+    expect(saved, isNotNull);
+    expect(saved!.count, 7);
+
+    // 取得完了後、再び英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Repository details'), findsOneWidget);
+    expect(find.text('Watchers: 8'), findsOneWidget);
+
+    expect(find.text('Open issues (excluding PRs): 7'), findsOneWidget);
+
+    expect(find.textContaining('Fetched: '), findsOneWidget);
+
+    // キャッシュも更新されていない。
+    expect(cache.get(summary.key), same(saved));
+
+    expectAccessibleButton(
+      tester,
+      issueButtonFinder,
+      visibleText: 'Fetch again',
+      semanticLabel: 'Fetch open issue count again',
+    );
+
+    // 言語変更だけではAPI通信を追加しない。
+    expect(searches, ['submitted']);
+    expect(keys, [summary.key]);
+    expect(issueKeys, [summary.key]);
+
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _IssueViaHttpGateway extends FakeGitHubRepositoryGateway {

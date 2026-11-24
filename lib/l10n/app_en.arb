@@ -78,5 +78,83 @@
   "githubSearchLimitReached": "The GitHub Search API retrieval limit (1,000 results) has been reached.",
   "noMoreResults": "No more results.",
 
-  "unexpectedSearchError": "An unexpected error occurred during the search."
+  "unexpectedSearchError": "An unexpected error occurred during the search.",
+
+  "detailTitle": "Repository details",
+  "repositoryLanguage": "Language: {language}",
+  "@repositoryLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "starCount": "Stars: {count}",
+  "@starCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "watcherCount": "Watchers: {count}",
+  "@watcherCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "forkCount": "Forks: {count}",
+  "@forkCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "openIssueAndPullRequestCount": "Open issues + PRs: {count}",
+  "@openIssueAndPullRequestCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "detailLoading": "Loading repository details…",
+  "unexpectedDetailError": "An unexpected error occurred while loading repository details.",
+  "retryDetailSemantics": "Retry loading repository details",
+  "ownerAvatar": "Repository owner avatar",
+  "openIssuesLoading": "Open issues (excluding PRs): Fetching…",
+  "openIssueCount": "Open issues (excluding PRs): {count}",
+  "@openIssueCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "openIssuesNotFetched": "Open issues (excluding PRs): Not fetched",
+  "refresh": "Refresh",
+  "fetch": "Fetch",
+  "fetchAgain": "Fetch again",
+  "refreshDetailSemantics": "Refresh repository details",
+  "fetchOpenIssuesSemantics": "Fetch open issue count",
+  "refetchOpenIssuesSemantics": "Fetch open issue count again",
+  "retryOpenIssuesSemantics": "Retry fetching open issue count",
+  "issueFetchedAt": "Fetched: {dateTime} (device time)",
+  "@issueFetchedAt": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
+  "unexpectedIssueError": "An unexpected error occurred while fetching the issue count.",
+  "openIssuesApiNotice": "Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit."
 }

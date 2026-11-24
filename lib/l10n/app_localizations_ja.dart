@@ -128,4 +128,108 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get unexpectedSearchError => '検索処理中に問題が発生しました。';
+
+  @override
+  String get detailTitle => 'リポジトリ詳細';
+
+  @override
+  String repositoryLanguage(String language) {
+    return '言語：$language';
+  }
+
+  @override
+  String starCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Star数：$countString';
+  }
+
+  @override
+  String watcherCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Watcher数：$countString';
+  }
+
+  @override
+  String forkCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Fork数：$countString';
+  }
+
+  @override
+  String openIssueAndPullRequestCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Open Issue＋PR数：$countString';
+  }
+
+  @override
+  String get detailLoading => '詳細情報を取得中…';
+
+  @override
+  String get unexpectedDetailError => '詳細情報の処理中に問題が発生しました。';
+
+  @override
+  String get retryDetailSemantics => 'リポジトリ詳細情報の取得を再試行';
+
+  @override
+  String get ownerAvatar => 'オーナーアイコン';
+
+  @override
+  String get openIssuesLoading => 'Open Issue数（PR除外）：取得中…';
+
+  @override
+  String openIssueCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Open Issue数（PR除外）：$countString';
+  }
+
+  @override
+  String get openIssuesNotFetched => 'Open Issue数（PR除外）：未取得';
+
+  @override
+  String get refresh => '更新';
+
+  @override
+  String get fetch => '取得';
+
+  @override
+  String get fetchAgain => '再取得';
+
+  @override
+  String get refreshDetailSemantics => 'リポジトリ詳細情報を更新';
+
+  @override
+  String get fetchOpenIssuesSemantics => 'Open Issue数を取得';
+
+  @override
+  String get refetchOpenIssuesSemantics => 'Open Issue数を再取得';
+
+  @override
+  String get retryOpenIssuesSemantics => 'Open Issue数の取得を再試行';
+
+  @override
+  String issueFetchedAt(String dateTime) {
+    return '取得日時：$dateTime（端末時刻）';
+  }
+
+  @override
+  String get unexpectedIssueError => 'Issue数の取得中に問題が発生しました。';
+
+  @override
+  String get openIssuesApiNotice =>
+      '※ Open Issue数の取得・再取得・再試行には、操作ごとにGitHub Search APIを1回使用します。APIのレート制限に影響します。';
 }

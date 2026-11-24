@@ -133,4 +133,110 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get unexpectedSearchError =>
       'An unexpected error occurred during the search.';
+
+  @override
+  String get detailTitle => 'Repository details';
+
+  @override
+  String repositoryLanguage(String language) {
+    return 'Language: $language';
+  }
+
+  @override
+  String starCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Stars: $countString';
+  }
+
+  @override
+  String watcherCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Watchers: $countString';
+  }
+
+  @override
+  String forkCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Forks: $countString';
+  }
+
+  @override
+  String openIssueAndPullRequestCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Open issues + PRs: $countString';
+  }
+
+  @override
+  String get detailLoading => 'Loading repository details…';
+
+  @override
+  String get unexpectedDetailError =>
+      'An unexpected error occurred while loading repository details.';
+
+  @override
+  String get retryDetailSemantics => 'Retry loading repository details';
+
+  @override
+  String get ownerAvatar => 'Repository owner avatar';
+
+  @override
+  String get openIssuesLoading => 'Open issues (excluding PRs): Fetching…';
+
+  @override
+  String openIssueCount(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'Open issues (excluding PRs): $countString';
+  }
+
+  @override
+  String get openIssuesNotFetched => 'Open issues (excluding PRs): Not fetched';
+
+  @override
+  String get refresh => 'Refresh';
+
+  @override
+  String get fetch => 'Fetch';
+
+  @override
+  String get fetchAgain => 'Fetch again';
+
+  @override
+  String get refreshDetailSemantics => 'Refresh repository details';
+
+  @override
+  String get fetchOpenIssuesSemantics => 'Fetch open issue count';
+
+  @override
+  String get refetchOpenIssuesSemantics => 'Fetch open issue count again';
+
+  @override
+  String get retryOpenIssuesSemantics => 'Retry fetching open issue count';
+
+  @override
+  String issueFetchedAt(String dateTime) {
+    return 'Fetched: $dateTime (device time)';
+  }
+
+  @override
+  String get unexpectedIssueError =>
+      'An unexpected error occurred while fetching the issue count.';
+
+  @override
+  String get openIssuesApiNotice =>
+      'Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.';
 }
