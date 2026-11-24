@@ -1,0 +1,7 @@
+{
+  "@@locale": "en",
+  "appTitle": "Repository Search",
+  "@appTitle": {
+    "description": "Application title"
+  }
+}

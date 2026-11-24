@@ -1,0 +1,12 @@
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+preferred-supported-locales:
+  - en
+nullable-getter: false
+format: true
+
+# TODO: Flutterのgen-l10n修正版が安定版に入ったら削除する。
+# https://github.com/flutter/flutter/pull/194500
+header: '// ignore_for_file: deprecated_member_use'

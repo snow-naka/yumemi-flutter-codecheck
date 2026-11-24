@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'features/search/search_screen.dart';
+import 'l10n/app_localizations.dart';
 
 void main() {
   runApp(
@@ -19,8 +20,17 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Repository Search',
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
+
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        ...GlobalMaterialLocalizations.delegates,
+      ],
+
+      supportedLocales: AppLocalizations.supportedLocales,
+
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
+
       home: const SearchScreen(),
     );
   }
