@@ -41,7 +41,7 @@ int parseOpenIssueCount(List<int> bodyBytes) {
   } on FormatException {
     throw const ApiFailure(
       kind: ApiFailureKind.invalidResponse,
-      safeMessage: 'Issue数を確認できませんでした。',
+      reason: ApiFailureReason.issueCountUnverified,
     );
   }
 }

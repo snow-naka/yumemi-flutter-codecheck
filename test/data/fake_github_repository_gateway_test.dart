@@ -64,7 +64,13 @@ void main() {
     await expectLater(
       gateway.searchRepositories('error'),
       throwsA(
-        isA<ApiFailure>().having((e) => e.kind, 'kind', ApiFailureKind.network),
+        isA<ApiFailure>()
+            .having((e) => e.kind, 'kind', ApiFailureKind.network)
+            .having(
+              (e) => e.reason,
+              'reason',
+              ApiFailureReason.simulatedSearchFailure,
+            ),
       ),
     );
   });
@@ -75,9 +81,16 @@ void main() {
       final summary = (await gateway.searchRepositories('riverpod'))
           .items
           .single;
+      final simulatedDetailFailure = isA<ApiFailure>()
+          .having((e) => e.kind, 'kind', ApiFailureKind.network)
+          .having(
+            (e) => e.reason,
+            'reason',
+            ApiFailureReason.simulatedDetailFailure,
+          );
       await expectLater(
         gateway.getRepository(summary.key),
-        throwsA(isA<ApiFailure>()),
+        throwsA(simulatedDetailFailure),
       );
       final detail = await gateway.getRepository(summary.key);
       expect(detail.summary.key, summary.key);
@@ -86,7 +99,7 @@ void main() {
       final fresh = FakeGitHubRepositoryGateway(delay: Duration.zero);
       await expectLater(
         fresh.getRepository(summary.key),
-        throwsA(isA<ApiFailure>()),
+        throwsA(simulatedDetailFailure),
       );
     },
   );
@@ -97,11 +110,13 @@ void main() {
         const RepositoryKey(id: 999, owner: 'missing', name: 'missing'),
       ),
       throwsA(
-        isA<ApiFailure>().having(
-          (e) => e.kind,
-          'kind',
-          ApiFailureKind.notFoundOrUnavailable,
-        ),
+        isA<ApiFailure>()
+            .having((e) => e.kind, 'kind', ApiFailureKind.notFoundOrUnavailable)
+            .having(
+              (e) => e.reason,
+              'reason',
+              ApiFailureReason.simulatedRepositoryNotFound,
+            ),
       ),
     );
   });
@@ -143,10 +158,7 @@ void main() {
     'detail handler controls failure without default scripted behavior',
     () async {
       const key = RepositoryKey(id: 42, owner: 'test', name: 'controlled');
-      const failure = ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'test failure',
-      );
+      const failure = ApiFailure(kind: ApiFailureKind.network);
       final pending = Completer<RepositoryDetail>();
       final controlled = FakeGitHubRepositoryGateway(
         detailHandler: (received) {

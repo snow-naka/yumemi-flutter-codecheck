@@ -1,0 +1,228 @@
+
+{
+  "@@locale": "en",
+
+  "appTitle": "Repository Search",
+  "@appTitle": {
+    "description": "Application title"
+  },
+
+  "search": "Search",
+  "cancel": "Cancel",
+  "retry": "Retry",
+  "close": "Close",
+
+  "keyword": "Keyword",
+  "keywordRequired": "Please enter a search keyword.",
+  "searchPrompt": "Enter a keyword to search.",
+  "searching": "Searching…",
+
+  "showFullSearchQuery": "Show the full search query",
+  "submittedQueryTitle": "Submitted search query",
+  "submittedQueryLabel": "Submitted query: {query}",
+  "@submittedQueryLabel": {
+    "description": "The query used for the current search",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+
+  "searchPanelPosition": "Search field position",
+  "searchPanelTopDefault": "Top (default)",
+  "searchPanelBottom": "Bottom",
+  "searchPanelLeftDefault": "Left (default)",
+  "searchPanelRight": "Right",
+  "searchPanelSaveFailed": "Could not save the search field position.",
+
+  "apiDiagnosticsTitle": "API Request Inspector",
+
+  "searchResultCount": "Showing {displayedCount} / Initial total: {totalCount}",
+  "@searchResultCount": {
+    "description": "Displayed result count and initial total result count",
+    "placeholders": {
+      "displayedCount": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "totalCount": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+
+  "searchEmptyCount": "Showing: 0 (Total: {totalCount})",
+  "@searchEmptyCount": {
+    "description": "Result count when there are no displayable results",
+    "placeholders": {
+      "totalCount": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+
+  "incompleteResultsWarning": "Search results may be incomplete.",
+  "searchEmptyIncomplete": "No results to display. Search results may be incomplete.",
+  "searchNoMatches": "No matching repositories were found.",
+  "searchEmptyPage": "There are no repositories to display on this page.",
+
+  "languageUnspecified": "Not specified",
+  "viewed": "Viewed",
+
+  "loadMore": "Load more",
+  "loadingMore": "Loading more…",
+  "retryLoadMore": "Retry loading more",
+  "githubSearchLimitReached": "The GitHub Search API retrieval limit (1,000 results) has been reached.",
+  "noMoreResults": "No more results.",
+
+  "unexpectedSearchError": "An unexpected error occurred during the search.",
+
+  "detailTitle": "Repository details",
+  "repositoryLanguage": "Language: {language}",
+  "@repositoryLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "starCount": "Stars: {count}",
+  "@starCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "watcherCount": "Watchers: {count}",
+  "@watcherCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "forkCount": "Forks: {count}",
+  "@forkCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "openIssueAndPullRequestCount": "Open issues + PRs: {count}",
+  "@openIssueAndPullRequestCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "detailLoading": "Loading repository details…",
+  "unexpectedDetailError": "An unexpected error occurred while loading repository details.",
+  "retryDetailSemantics": "Retry loading repository details",
+  "ownerAvatar": "Repository owner avatar",
+  "openIssuesLoading": "Open issues (excluding PRs): Fetching…",
+  "openIssueCount": "Open issues (excluding PRs): {count}",
+  "@openIssueCount": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "openIssuesNotFetched": "Open issues (excluding PRs): Not fetched",
+  "refresh": "Refresh",
+  "fetch": "Fetch",
+  "fetchAgain": "Fetch again",
+  "refreshDetailSemantics": "Refresh repository details",
+  "fetchOpenIssuesSemantics": "Fetch open issue count",
+  "refetchOpenIssuesSemantics": "Fetch open issue count again",
+  "retryOpenIssuesSemantics": "Retry fetching open issue count",
+  "issueFetchedAt": "Fetched: {dateTime} (device time)",
+  "@issueFetchedAt": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
+  "unexpectedIssueError": "An unexpected error occurred while fetching the issue count.",
+  "openIssuesApiNotice": "Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.",
+
+  "apiNetworkError": "Failed to communicate with GitHub.",
+  "apiTimeoutError": "The request timed out.",
+  "apiInvalidResponse": "The GitHub API returned an invalid response.",
+  "apiRateLimited": "The GitHub API rate limit has been reached.",
+  "apiHttpError": "The GitHub API returned an error.",
+  "apiInvalidSearchCondition": "Invalid search parameters.",
+  "apiInvalidRepositoryKey": "Invalid repository specification.",
+  "apiIssueCountUnverified": "Could not verify the open issue count.",
+  "apiRepositoryMismatch": "The returned repository differs from the search result.",
+  "apiBlockedBeforeSendUnknown": "Requests to GitHub are temporarily paused. The retry time is unknown.",
+  "apiBlockedBeforeSendKnown": "Requests to GitHub are temporarily paused. Please try again later.",
+  "apiSimulatedSearchFailure": "Simulated search failure. Please search again.",
+  "apiSimulatedRepositoryNotFound": "Could not retrieve the simulated repository.",
+  "apiSimulatedDetailFailure": "Simulated detail request failure. Please try again.",
+
+  "diagnosticDebugOnly": "This screen is available only in debug builds.",
+  "diagnosticClearHistory": "Clear history",
+  "diagnosticEmptyHistory": "No request history yet.",
+  "diagnosticDetailOperation": "Detail",
+  "diagnosticEventTitle": "{operation} / {status}",
+  "@diagnosticEventTitle": {
+    "placeholders": {
+      "operation": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticRecordedAt": "Recorded: {dateTime}",
+  "@diagnosticRecordedAt": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticResult": "Result",
+  "diagnosticRemainingLimit": "Remaining / Limit",
+  "diagnosticNotReported": "Not reported",
+  "diagnosticRetryAfterSeconds": "{seconds} s",
+  "@diagnosticRetryAfterSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "diagnosticPolicyRetryAt": "App retry time",
+  "diagnosticUnknownRetryAt": "Resume time unknown (requests paused)",
+  "diagnosticPolicyBlockedAfterResponse": "Requests paused after response",
+  "diagnosticResponse": "HTTP response",
+  "diagnosticBlockedByRateLimit": "Blocked before sending",
+  "diagnosticCanceledBeforeSend": "Canceled before sending",
+  "diagnosticTimeout": "Timeout",
+  "diagnosticNetworkFailure": "Network failure",
+  "diagnosticNotRecorded": "Not recorded",
+  "diagnosticDeviceTime": "{dateTime} (device time)",
+  "@diagnosticDeviceTime": {
+    "placeholders": {
+      "dateTime": {
+        "type": "String"
+      }
+    }
+  }
+}

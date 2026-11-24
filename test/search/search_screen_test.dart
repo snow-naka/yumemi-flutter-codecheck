@@ -56,12 +56,21 @@ void main() {
     );
   });
 
-  Future<void> start(WidgetTester tester) => tester.pumpWidget(
-    ProviderScope(
-      overrides: [githubRepositoryGatewayProvider.overrideWithValue(fake)],
-      child: const MyApp(),
-    ),
-  );
+  Future<void> start(
+    WidgetTester tester, {
+    Locale locale = const Locale('ja', 'JP'),
+  }) async {
+    tester.platformDispatcher.localesTestValue = [locale];
+
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [githubRepositoryGatewayProvider.overrideWithValue(fake)],
+        child: const MyApp(),
+      ),
+    );
+  }
 
   Future<void> search(WidgetTester tester, String query) async {
     await tester.enterText(input, query);
@@ -69,7 +78,14 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> startWithLayout(WidgetTester tester) async {
+  Future<void> startWithLayout(
+    WidgetTester tester, {
+    Locale locale = const Locale('ja', 'JP'),
+  }) async {
+    tester.platformDispatcher.localesTestValue = [locale];
+
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -103,6 +119,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  final localizedLayoutCases = [
+    for (final locale in const [Locale('ja', 'JP'), Locale('en', 'US')])
+      for (final position in SearchPanelPosition.values) (position, locale),
+  ];
   testWidgets('initial view and blank submission do not call the gateway', (
     tester,
   ) async {
@@ -187,19 +207,16 @@ void main() {
       await start(tester);
       await search(tester, 'failed');
       requests.single.completeError(
-        const ApiFailure(
-          kind: ApiFailureKind.network,
-          safeMessage: 'テスト用の取得失敗',
-        ),
+        const ApiFailure(kind: ApiFailureKind.network),
       );
       await tester.pump();
-      expect(find.text('テスト用の取得失敗'), findsOneWidget);
+      expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
       expect(tester.widget<IconButton>(submit).onPressed, isNotNull);
       await tester.enterText(input, 'edited');
       await tester.tap(find.text('再試行'));
       await tester.pump();
       expect(queries, ['failed', 'failed']);
-      expect(find.text('テスト用の取得失敗'), findsNothing);
+      expect(find.text('GitHubとの通信に失敗しました。'), findsNothing);
       expect(tester.widget<TextFormField>(input).controller!.text, 'edited');
       requests.last.complete(resultPage());
       await tester.pump();
@@ -298,12 +315,7 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
 
     // 追加読み込みで通信エラー
-    requests[1].completeError(
-      const ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'テスト用の追加読み込み失敗',
-      ),
-    );
+    requests[1].completeError(const ApiFailure(kind: ApiFailureKind.network));
 
     await tester.pump();
 
@@ -311,8 +323,30 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
     expect(find.text('2件表示 / 初回総件数 3件'), findsOneWidget);
-    expect(find.text('テスト用の追加読み込み失敗'), findsOneWidget);
+    expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
     expect(find.text('追加読み込みを再試行'), findsOneWidget);
+
+    // 追加読み込み失敗中に英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Failed to communicate with GitHub.'), findsOneWidget);
+    expect(find.text('Retry loading more'), findsOneWidget);
+    expect(find.text('repository-0'), findsOneWidget);
+    expect(find.text('repository-1'), findsOneWidget);
+    expect(find.text('Showing 2 / Initial total: 3'), findsOneWidget);
+
+    expect(requests, hasLength(2));
+
+    // 日本語へ戻して既存の再試行テストを続ける。
+    tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
+    expect(find.text('追加読み込みを再試行'), findsOneWidget);
+    expect(requests, hasLength(2));
 
     // 再試行する
     await tester.tap(find.text('追加読み込みを再試行'));
@@ -1067,140 +1101,151 @@ void main() {
     expect(find.text('1件表示 / 初回総件数 1,234,567件'), findsOneWidget);
   });
 
-  for (final position in SearchPanelPosition.values) {
-    testWidgets('UX02: 長い検索語でも一覧を維持し全文を確認できる (${position.name})', (
-      tester,
-    ) async {
-      await tester.binding.setSurfaceSize(const Size(320, 800));
-      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+  for (final (position, locale) in localizedLayoutCases) {
+    testWidgets(
+      'UX02: 長い検索語でも一覧を維持し全文を確認できる(${position.name}, ${locale.languageCode})',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(320, 800));
+        tester.platformDispatcher.textScaleFactorTestValue = 2.0;
 
-      addTearDown(() async {
-        tester.platformDispatcher.clearTextScaleFactorTestValue();
-        await tester.binding.setSurfaceSize(null);
-      });
+        addTearDown(() async {
+          tester.platformDispatcher.clearTextScaleFactorTestValue();
+          await tester.binding.setSurfaceSize(null);
+        });
 
-      layoutStore.saved = position;
-      await startWithLayout(tester);
+        layoutStore.saved = position;
+        await startWithLayout(tester, locale: locale);
 
-      final query = List.filled(60, 'flutter').join(' ');
+        final query = List.filled(60, 'flutter').join(' ');
 
-      await search(tester, query);
-      requests.single.complete(resultPage(count: 30));
-      await tester.pump();
+        await search(tester, query);
+        requests.single.complete(resultPage(count: 30));
+        await tester.pump();
 
-      final preview = find.byKey(const Key('submitted-query-label'));
+        final preview = find.byKey(const Key('submitted-query-label'));
 
-      expect(preview, findsOneWidget);
+        expect(preview, findsOneWidget);
 
-      final text = tester.widget<Text>(preview);
-      expect(text.maxLines, 2);
-      expect(text.overflow, TextOverflow.ellipsis);
+        final text = tester.widget<Text>(preview);
+        expect(text.maxLines, 2);
+        expect(text.overflow, TextOverflow.ellipsis);
 
-      // 検索結果の表示領域が残っている。
-      final list = find.byType(ListView);
-      expect(list, findsOneWidget);
-      expect(tester.getSize(list).height, greaterThan(0));
+        // 検索結果の表示領域が残っている。
+        final list = find.byType(ListView);
+        expect(list, findsOneWidget);
+        expect(tester.getSize(list).height, greaterThan(0));
 
-      // 省略表示をタップして全文を確認。
-      await tester.tap(find.byKey(const Key('submitted-query-open')));
-      await tester.pumpAndSettle();
+        // 省略表示をタップして全文を確認。
+        await tester.tap(find.byKey(const Key('submitted-query-open')));
+        await tester.pumpAndSettle();
 
-      final fullText = tester.widget<SelectableText>(
-        find.byKey(const Key('submitted-query-full')),
-      );
-      expect(fullText.data, query);
+        final fullText = tester.widget<SelectableText>(
+          find.byKey(const Key('submitted-query-full')),
+        );
+        expect(fullText.data, query);
 
-      // ダイアログを閉じても検索状態は維持する。
-      await tester.tap(find.byKey(const Key('submitted-query-close')));
-      await tester.pumpAndSettle();
+        // ダイアログを閉じても検索状態は維持する。
+        await tester.tap(find.byKey(const Key('submitted-query-close')));
+        await tester.pumpAndSettle();
 
-      expect(queries, [query]);
-    });
+        expect(queries, [query]);
+      },
+    );
   }
-  for (final position in SearchPanelPosition.values) {
-    testWidgets('RT01: 画面回転時も検索状態と配置を維持する (${position.name})', (tester) async {
-      tester.view.devicePixelRatio = 1.0;
-      tester.view.physicalSize = const Size(390, 800);
-      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+  for (final (position, locale) in localizedLayoutCases) {
+    testWidgets(
+      'RT01: 画面回転時も検索状態と配置を維持する (${position.name}, ${locale.languageCode})',
+      (tester) async {
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.physicalSize = const Size(390, 800);
+        tester.platformDispatcher.textScaleFactorTestValue = 2.0;
 
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-      layoutStore.saved = position;
-      await startWithLayout(tester);
+        layoutStore.saved = position;
+        await startWithLayout(tester, locale: locale);
 
-      await search(tester, 'flutter');
-      requests.single.complete(resultPage(count: 30));
-      await tester.pumpAndSettle();
+        await search(tester, 'flutter');
+        requests.single.complete(resultPage(count: 30));
+        await tester.pumpAndSettle();
 
-      final layout = find.byKey(const Key('search-main-layout'));
-      final panel = find.byKey(const Key('search-controls-panel'));
-      final list = find.byType(ListView);
+        final layout = find.byKey(const Key('search-main-layout'));
+        final panel = find.byKey(const Key('search-controls-panel'));
+        final list = find.byType(ListView);
 
-      // 縦画面では上下配置。
-      expect(tester.widget<Flex>(layout).direction, Axis.vertical);
+        // 縦画面では上下配置。
+        expect(tester.widget<Flex>(layout).direction, Axis.vertical);
 
-      // 未送信の入力を残しておく。
-      await tester.enterText(input, 'draft');
-      tester.testTextInput.hide();
-      await tester.pumpAndSettle();
+        // 未送信の入力を残しておく。
+        await tester.enterText(input, 'draft');
+        tester.testTextInput.hide();
+        await tester.pumpAndSettle();
 
-      final controller = tester.widget<ListView>(list).controller!;
+        final controller = tester.widget<ListView>(list).controller!;
 
-      controller.jumpTo(200);
-      await tester.pumpAndSettle();
+        controller.jumpTo(200);
+        await tester.pumpAndSettle();
 
-      final originalScrollPosition = controller.position;
+        final originalScrollPosition = controller.position;
 
-      // 横画面へ回転。
-      tester.view.physicalSize = const Size(800, 390);
-      await tester.pumpAndSettle();
+        // 横画面へ回転。
+        tester.view.physicalSize = const Size(800, 390);
+        await tester.pumpAndSettle();
 
-      expect(tester.widget<Flex>(layout).direction, Axis.horizontal);
+        expect(tester.widget<Flex>(layout).direction, Axis.horizontal);
 
-      final panelRect = tester.getRect(panel);
-      final listRect = tester.getRect(list);
+        final panelRect = tester.getRect(panel);
+        final listRect = tester.getRect(list);
 
-      if (position == SearchPanelPosition.top) {
-        expect(panelRect.right, lessThan(listRect.left));
-      } else {
-        expect(panelRect.left, greaterThan(listRect.right));
-      }
+        if (position == SearchPanelPosition.top) {
+          expect(panelRect.right, lessThan(listRect.left));
+        } else {
+          expect(panelRect.left, greaterThan(listRect.right));
+        }
 
-      // 検索結果を表示できる高さが残っている。
-      expect(listRect.height, greaterThan(0));
+        // 検索結果を表示できる高さが残っている。
+        expect(listRect.height, greaterThan(0));
 
-      // 入力内容と送信済み検索語を維持。
-      expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
-      expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+        // 入力内容と送信済み検索語を維持。
+        expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+        expect(
+          find.text(
+            locale.languageCode == 'ja'
+                ? '送信済みの検索語：flutter'
+                : 'Submitted query: flutter',
+          ),
+          findsOneWidget,
+        );
 
-      // スクロール状態を作り直さない。
-      expect(controller.position, same(originalScrollPosition));
-      expect(controller.offset, greaterThan(0));
+        // スクロール状態を作り直さない。
+        expect(controller.position, same(originalScrollPosition));
+        expect(controller.offset, greaterThan(0));
 
-      // APIの追加要求や設定の書き込みは発生しない。
-      expect(queries, ['flutter']);
-      expect(layoutStore.writes, isEmpty);
-      expect(tester.takeException(), isNull);
+        // APIの追加要求や設定の書き込みは発生しない。
+        expect(queries, ['flutter']);
+        expect(layoutStore.writes, isEmpty);
+        expect(tester.takeException(), isNull);
 
-      // 再び縦画面へ戻す。
-      tester.view.physicalSize = const Size(390, 800);
-      await tester.pumpAndSettle();
+        // 再び縦画面へ戻す。
+        tester.view.physicalSize = const Size(390, 800);
+        await tester.pumpAndSettle();
 
-      expect(tester.widget<Flex>(layout).direction, Axis.vertical);
+        expect(tester.widget<Flex>(layout).direction, Axis.vertical);
 
-      expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+        expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
 
-      expect(controller.position, same(originalScrollPosition));
-      expect(controller.offset, greaterThan(0));
-      expect(queries, ['flutter']);
-      expect(tester.takeException(), isNull);
-    });
+        expect(controller.position, same(originalScrollPosition));
+        expect(controller.offset, greaterThan(0));
+        expect(queries, ['flutter']);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
-  for (final position in SearchPanelPosition.values) {
+  for (final (position, locale) in localizedLayoutCases) {
     testWidgets('KB01: 横画面でキーボードを表示しても検索状態を維持する'
-        ' (${position.name})', (tester) async {
+        ' (${position.name}, ${locale.languageCode})', (tester) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(800, 390);
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;
@@ -1211,7 +1256,7 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
       layoutStore.saved = position;
-      await startWithLayout(tester);
+      await startWithLayout(tester, locale: locale);
 
       await search(tester, 'flutter');
       requests.single.complete(resultPage(count: 30));
@@ -1278,12 +1323,275 @@ void main() {
 
       expect(controller.offset, closeTo(originalOffset, 0.01));
 
-      expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+      expect(
+        find.text(
+          locale.languageCode == 'ja'
+              ? '送信済みの検索語：flutter'
+              : 'Submitted query: flutter',
+        ),
+        findsOneWidget,
+      );
 
       expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
 
       // 表示切り替えだけではAPI通信・設定保存を行わない。
       expect(queries, ['flutter']);
+      expect(layoutStore.writes, isEmpty);
+
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('LS01: 英語環境で検索画面を操作できる', (tester) async {
+    await startWithLayout(tester, locale: const Locale('en', 'US'));
+
+    expect(find.text('Repository Search'), findsOneWidget);
+    expect(find.text('Keyword'), findsOneWidget);
+    expect(find.text('Enter a keyword to search.'), findsOneWidget);
+
+    // 空入力時のエラーも英語で表示する。
+    await search(tester, '  ');
+
+    expect(find.text('Please enter a search keyword.'), findsOneWidget);
+    expect(queries, isEmpty);
+
+    // 正常な検索。
+    await search(tester, 'flutter');
+
+    expect(find.text('Searching…'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Submitted query: flutter'), findsOneWidget);
+
+    final page = resultPage(count: 2);
+    requests.single.complete(page);
+    await tester.pumpAndSettle();
+
+    expect(find.text('repository-0'), findsOneWidget);
+    expect(find.text('test/repository-1 / Not specified'), findsOneWidget);
+
+    expect(
+      find.text('Showing 2 / Initial total: ${page.totalCount}'),
+      findsOneWidget,
+    );
+
+    // 送信済み検索語の全文表示。
+    await tester.tap(find.byKey(const Key('submitted-query-open')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Submitted search query'), findsOneWidget);
+
+    final fullText = tester.widget<SelectableText>(
+      find.byKey(const Key('submitted-query-full')),
+    );
+
+    expect(fullText.data, 'flutter');
+    expect(find.text('Close'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('submitted-query-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('repository-0'), findsOneWidget);
+    expect(queries, ['flutter']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LS02: 未対応言語では検索画面を英語で表示する', (tester) async {
+    await startWithLayout(tester, locale: const Locale('fr', 'FR'));
+
+    expect(find.text('Repository Search'), findsOneWidget);
+    expect(find.text('Keyword'), findsOneWidget);
+    expect(find.text('Enter a keyword to search.'), findsOneWidget);
+
+    final context = tester.element(input);
+
+    expect(Localizations.localeOf(context), const Locale('en'));
+
+    expect(queries, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LS03: 言語変更時も検索状態と入力内容を維持する', (tester) async {
+    await startWithLayout(tester);
+
+    await search(tester, 'flutter');
+    requests.single.complete(resultPage(count: 30));
+    await tester.pumpAndSettle();
+
+    expect(find.text('リポジトリ検索'), findsOneWidget);
+    expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+
+    // 未送信の入力を保持する。
+    await tester.enterText(input, 'draft');
+    tester.testTextInput.hide();
+    await tester.pumpAndSettle();
+
+    final list = find.byType(ListView);
+    final controller = tester.widget<ListView>(list).controller!;
+
+    controller.jumpTo(200);
+    await tester.pumpAndSettle();
+
+    final originalOffset = controller.offset;
+
+    expect(controller.offset, greaterThan(0));
+
+    // 日本語から英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Repository Search'), findsOneWidget);
+    expect(find.text('Submitted query: flutter'), findsOneWidget);
+    expect(find.text('リポジトリ検索'), findsNothing);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+    expect(tester.widget<ListView>(list).controller, same(controller));
+    expect(controller.offset, closeTo(originalOffset, 0.01));
+
+    // 日本語に戻す。
+    tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('リポジトリ検索'), findsOneWidget);
+    expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+    expect(tester.widget<ListView>(list).controller, same(controller));
+    expect(controller.offset, closeTo(originalOffset, 0.01));
+
+    // 言語変更だけでは通信や設定保存を行わない。
+    expect(queries, ['flutter']);
+    expect(layoutStore.writes, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LS04: 言語変更時に表示済みの入力エラーも翻訳する', (tester) async {
+    await startWithLayout(tester);
+
+    await search(tester, '  ');
+
+    expect(find.text('検索キーワードを入力してください。'), findsOneWidget);
+
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keyword'), findsOneWidget);
+
+    expect(find.text('Please enter a search keyword.'), findsOneWidget);
+
+    expect(find.text('検索キーワードを入力してください。'), findsNothing);
+
+    expect(queries, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LE02: 検索エラーを言語変更後も保持して再試行できる', (tester) async {
+    await startWithLayout(tester);
+
+    await search(tester, 'flutter');
+
+    requests.single.completeError(
+      const ApiFailure(
+        kind: ApiFailureKind.rateLimited,
+        reason: ApiFailureReason.blockedBeforeSend,
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    const jaMessage =
+        'GitHubへの送信を一時停止しています。'
+        '再試行可能な時刻は不明です。';
+
+    const enMessage =
+        'Requests to GitHub are temporarily paused. '
+        'The retry time is unknown.';
+
+    expect(find.text(jaMessage), findsOneWidget);
+    expect(find.text('再試行'), findsOneWidget);
+
+    // 未送信の入力も保持する。
+    await tester.enterText(input, 'draft');
+
+    // エラー表示中に英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text(enMessage), findsOneWidget);
+    expect(find.text(jaMessage), findsNothing);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Submitted query: flutter'), findsOneWidget);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+    // 言語変更だけでは再検索しない。
+    expect(queries, ['flutter']);
+    expect(layoutStore.writes, isEmpty);
+
+    // 利用者による明示的な再試行。
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+
+    expect(queries, ['flutter', 'flutter']);
+    expect(find.text(enMessage), findsNothing);
+
+    requests.last.complete(resultPage());
+    await tester.pumpAndSettle();
+
+    expect(find.text('repository-0'), findsOneWidget);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final (locale, expectedMessage) in [
+    (const Locale('ja', 'JP'), '検索キーワードを入力してください。'),
+    (const Locale('en', 'US'), 'Please enter a search keyword.'),
+  ]) {
+    testWidgets('LS05: 空欄エラーを現在の言語で読み上げ通知する'
+        ' (${locale.languageCode})', (tester) async {
+      // 読み上げ通知に対応する環境を再現する。
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(supportsAnnounce: true);
+
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+
+      await startWithLayout(tester, locale: locale);
+
+      // 空白のみを入力する。
+      await tester.enterText(input, '  ');
+      await tester.pumpAndSettle();
+
+      // 検索操作前の通知は検証対象から除外する。
+      tester.takeAnnouncements();
+
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      // 画面に翻訳済みのエラーを表示する。
+      expect(find.text(expectedMessage), findsOneWidget);
+
+      final messages = tester
+          .takeAnnouncements()
+          .map((announcement) => announcement.message)
+          .toList();
+
+      // 読み上げ通知にも翻訳済み文言を使用する。
+      expect(messages, contains(expectedMessage));
+
+      // 内部識別子を通知しない。
+      expect(messages, isNot(contains('keywordRequired')));
+
+      // 不正な入力によるAPI通信は発生しない。
+      expect(queries, isEmpty);
       expect(layoutStore.writes, isEmpty);
 
       expect(tester.takeException(), isNull);

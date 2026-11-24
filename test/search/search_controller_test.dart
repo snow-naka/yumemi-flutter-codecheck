@@ -168,9 +168,7 @@ void main() {
 
     final loadTask = controller.loadMore();
 
-    requests[1].completeError(
-      const ApiFailure(kind: ApiFailureKind.network, safeMessage: 'テスト用の通信失敗'),
-    );
+    requests[1].completeError(const ApiFailure(kind: ApiFailureKind.network));
     await loadTask;
 
     final failed = container.read(searchControllerProvider) as SearchResults;
@@ -381,9 +379,7 @@ void main() {
     expect(successB.items.map((item) => item.key.id).toList(), [10, 11]);
 
     // キャンセル済みAの追加取得が後から失敗する
-    requests[1].completeError(
-      const ApiFailure(kind: ApiFailureKind.network, safeMessage: '古い検索の通信失敗'),
-    );
+    requests[1].completeError(const ApiFailure(kind: ApiFailureKind.network));
     await loadTask;
 
     // AのエラーでBの成功状態が上書きされない
@@ -691,10 +687,7 @@ void main() {
 
       if (fails) {
         requests.single.completeError(
-          const ApiFailure(
-            kind: ApiFailureKind.network,
-            safeMessage: 'テスト用の通信失敗',
-          ),
+          const ApiFailure(kind: ApiFailureKind.network),
         );
       } else {
         requests.single.complete(resultPage());
@@ -724,7 +717,7 @@ void main() {
 
     // 破棄後にAPIエラーが到着
     requests.single.completeError(
-      const ApiFailure(kind: ApiFailureKind.network, safeMessage: '遅延した通信失敗'),
+      const ApiFailure(kind: ApiFailureKind.network),
     );
 
     // 破棄済みProviderへの更新などで例外終了しない

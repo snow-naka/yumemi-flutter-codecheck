@@ -2,27 +2,35 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/app_localizations.dart';
 import '../providers.dart';
 import 'api_diagnostics.dart';
+import '../l10n/localized_date_time.dart';
 
 class ApiDiagnosticsScreen extends ConsumerWidget {
   const ApiDiagnosticsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final formatDecimal = MaterialLocalizations.of(context).formatDecimal;
+
+    String formatNullableCount(int? value) =>
+        value == null ? '-' : formatDecimal(value);
+
     if (!kDebugMode) {
-      return const Scaffold(body: Center(child: Text('開発ビルド専用の画面です')));
+      return Scaffold(body: Center(child: Text(l10n.diagnosticDebugOnly)));
     }
 
     final store = ref.watch(apiDiagnosticsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('API通信インスペクター'),
+        title: Text(l10n.apiDiagnosticsTitle),
         actions: [
           IconButton(
             key: const Key('clear-api-diagnostics'),
-            tooltip: '履歴を消去',
+            tooltip: l10n.diagnosticClearHistory,
             icon: const Icon(Icons.delete_outline),
             onPressed: store.clear,
           ),
@@ -32,7 +40,7 @@ class ApiDiagnosticsScreen extends ConsumerWidget {
         valueListenable: store,
         builder: (context, events, child) {
           if (events.isEmpty) {
-            return const Center(child: Text('通信履歴はまだありません'));
+            return Center(child: Text(l10n.diagnosticEmptyHistory));
           }
 
           return ListView.builder(
@@ -42,38 +50,52 @@ class ApiDiagnosticsScreen extends ConsumerWidget {
               final event = events[events.length - 1 - index];
 
               final status = event.httpStatus == null
-                  ? _outcomeLabel(event.outcome)
+                  ? _outcomeLabel(l10n, event.outcome)
                   : 'HTTP ${event.httpStatus}';
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 child: ExpansionTile(
-                  title: Text('${_operationLabel(event.operation)} / $status'),
-                  subtitle: Text('記録：${_dateTime(event.recordedAt)}'),
+                  title: Text(
+                    l10n.diagnosticEventTitle(
+                      _operationLabel(l10n, event.operation),
+                      status,
+                    ),
+                  ),
+                  subtitle: Text(
+                    l10n.diagnosticRecordedAt(
+                      _dateTime(l10n, event.recordedAt),
+                    ),
+                  ),
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _detailRow('結果', _outcomeLabel(event.outcome)),
                           _detailRow(
-                            '残り / 上限',
-                            '${event.rateLimitRemaining ?? "-"}'
-                                ' / ${event.rateLimitLimit ?? "-"}',
+                            l10n.diagnosticResult,
+                            _outcomeLabel(l10n, event.outcome),
+                          ),
+                          _detailRow(
+                            l10n.diagnosticRemainingLimit,
+                            '${formatNullableCount(event.rateLimitRemaining)}'
+                            ' / ${formatNullableCount(event.rateLimitLimit)}',
                           ),
                           _detailRow(
                             'GitHub Reset',
-                            _dateTime(event.rateLimitResetAt),
+                            _dateTime(l10n, event.rateLimitResetAt),
                           ),
                           _detailRow(
                             'Retry-After',
                             event.retryAfter == null
-                                ? '未通知'
-                                : '${event.retryAfter!.inSeconds}秒',
+                                ? l10n.diagnosticNotReported
+                                : l10n.diagnosticRetryAfterSeconds(
+                                    event.retryAfter!.inSeconds,
+                                  ),
                           ),
                           _detailRow(
-                            'アプリ側の再試行目安',
+                            l10n.diagnosticPolicyRetryAt,
                             (event.outcome ==
                                             ApiDiagnosticOutcome
                                                 .blockedByRateLimit ||
@@ -81,8 +103,8 @@ class ApiDiagnosticsScreen extends ConsumerWidget {
                                             ApiDiagnosticOutcome
                                                 .policyBlockedAfterResponse) &&
                                     event.policyRetryAt == null
-                                ? '解除時刻不明（送信停止中）'
-                                : _dateTime(event.policyRetryAt),
+                                ? l10n.diagnosticUnknownRetryAt
+                                : _dateTime(l10n, event.policyRetryAt),
                           ),
                         ],
                       ),
@@ -110,33 +132,47 @@ class ApiDiagnosticsScreen extends ConsumerWidget {
     );
   }
 
-  static String _operationLabel(ApiDiagnosticOperation operation) {
+  static String _operationLabel(
+    AppLocalizations l10n,
+    ApiDiagnosticOperation operation,
+  ) {
     return switch (operation) {
-      ApiDiagnosticOperation.search => '検索',
-      ApiDiagnosticOperation.detail => '詳細',
+      ApiDiagnosticOperation.search => l10n.search,
+      ApiDiagnosticOperation.detail => l10n.diagnosticDetailOperation,
     };
   }
 
-  static String _outcomeLabel(ApiDiagnosticOutcome outcome) {
+  static String _outcomeLabel(
+    AppLocalizations l10n,
+    ApiDiagnosticOutcome outcome,
+  ) {
     return switch (outcome) {
-      ApiDiagnosticOutcome.policyBlockedAfterResponse => '応答後の送信制限',
-      ApiDiagnosticOutcome.response => 'HTTP応答',
-      ApiDiagnosticOutcome.blockedByRateLimit => '送信前に制限',
-      ApiDiagnosticOutcome.canceledBeforeSend => '送信前キャンセル',
-      ApiDiagnosticOutcome.timeout => 'タイムアウト',
-      ApiDiagnosticOutcome.networkFailure => '通信失敗',
+      ApiDiagnosticOutcome.policyBlockedAfterResponse =>
+        l10n.diagnosticPolicyBlockedAfterResponse,
+
+      ApiDiagnosticOutcome.response => l10n.diagnosticResponse,
+
+      ApiDiagnosticOutcome.blockedByRateLimit =>
+        l10n.diagnosticBlockedByRateLimit,
+
+      ApiDiagnosticOutcome.canceledBeforeSend =>
+        l10n.diagnosticCanceledBeforeSend,
+
+      ApiDiagnosticOutcome.timeout => l10n.diagnosticTimeout,
+
+      ApiDiagnosticOutcome.networkFailure => l10n.diagnosticNetworkFailure,
     };
   }
 
-  static String _dateTime(DateTime? value) {
-    if (value == null) return '未記録';
+  static String _dateTime(AppLocalizations l10n, DateTime? value) {
+    if (value == null) return l10n.diagnosticNotRecorded;
 
-    final local = value.toLocal();
-
-    String two(int n) => n.toString().padLeft(2, '0');
-
-    return '${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}:${two(local.second)}'
-        '（端末時刻）';
+    return l10n.diagnosticDeviceTime(
+      formatDeviceDateTime(
+        value,
+        localeName: l10n.localeName,
+        includeSeconds: true,
+      ),
+    );
   }
 }

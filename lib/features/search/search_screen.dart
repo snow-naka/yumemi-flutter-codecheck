@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 
 import '../../devtools/api_diagnostics_screen.dart';
+import '../../l10n/api_failure_localizer.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/repository_models.dart';
 import '../detail/repository_detail_provider.dart';
 import '../detail/repository_detail_screen.dart';
@@ -35,10 +37,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _submittedQueryPreview(String query) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Tooltip(
-        message: '検索語の全文を表示',
+        message: l10n.showFullSearchQuery,
         child: InkWell(
           key: const Key('submitted-query-open'),
           borderRadius: BorderRadius.circular(6),
@@ -46,7 +49,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Text(
-              '送信済みの検索語：$query',
+              l10n.submittedQueryLabel(query),
               key: const Key('submitted-query-label'),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -64,7 +67,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('送信済みの検索語'),
+          title: Text(AppLocalizations.of(dialogContext).submittedQueryTitle),
           scrollable: true,
           content: SelectableText(
             query,
@@ -74,7 +77,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             TextButton(
               key: const Key('submitted-query-close'),
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('閉じる'),
+              child: Text(AppLocalizations.of(dialogContext).close),
             ),
           ],
         ),
@@ -117,8 +120,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _panelPosition = previous;
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('検索欄の配置を保存できませんでした。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).searchPanelSaveFailed),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -174,6 +180,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final state = ref.watch(searchControllerProvider);
     final viewedKeys = ref.watch(viewedRepositoryProvider);
     final busy =
@@ -208,11 +215,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       appBar: compactInput
           ? null
           : AppBar(
-              title: const Text('Repository Search'),
+              title: Text(l10n.appTitle),
               actions: [
                 PopupMenuButton<SearchPanelPosition>(
                   key: const Key('search-layout-menu'),
-                  tooltip: '検索欄の配置',
+                  tooltip: l10n.searchPanelPosition,
                   enabled: !_savingPosition,
                   icon: const Icon(Icons.tune),
                   onSelected: (position) {
@@ -222,19 +229,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     CheckedPopupMenuItem<SearchPanelPosition>(
                       value: SearchPanelPosition.top,
                       checked: _panelPosition == SearchPanelPosition.top,
-                      child: Text(sideBySide ? '左に配置（標準）' : '上に配置（標準）'),
+                      child: Text(
+                        sideBySide
+                            ? l10n.searchPanelLeftDefault
+                            : l10n.searchPanelTopDefault,
+                      ),
                     ),
                     CheckedPopupMenuItem<SearchPanelPosition>(
                       value: SearchPanelPosition.bottom,
                       checked: _panelPosition == SearchPanelPosition.bottom,
-                      child: Text(sideBySide ? '右に配置' : '下に配置'),
+                      child: Text(
+                        sideBySide
+                            ? l10n.searchPanelRight
+                            : l10n.searchPanelBottom,
+                      ),
                     ),
                   ],
                 ),
                 if (kDebugMode)
                   IconButton(
                     key: const Key('open-api-diagnostics'),
-                    tooltip: 'API通信インスペクター',
+                    tooltip: l10n.apiDiagnosticsTitle,
                     icon: const Icon(Icons.bug_report_outlined),
                     onPressed: () {
                       Navigator.of(context).push(
@@ -373,16 +388,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     int displayedCount,
     int initialTotalCount,
   ) {
-    final format = MaterialLocalizations.of(context).formatDecimal;
-
     return Text(
-      '${format(displayedCount)}件表示 / '
-      '初回総件数 ${format(initialTotalCount)}件',
+      AppLocalizations.of(context)
+          .searchResultCount(displayedCount, initialTotalCount),
       key: const Key('search-result-count'),
     );
   }
 
   Widget _searchControls(SearchState state, bool busy) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -391,10 +405,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           child: TextFormField(
             controller: _input,
             decoration: InputDecoration(
-              labelText: 'キーワード',
+              labelText: l10n.keyword,
               suffixIcon: IconButton(
                 key: const Key('search-submit-button'),
-                tooltip: '検索',
+                tooltip: l10n.search,
                 onPressed: busy ? null : _submit,
                 icon: const Icon(Icons.search),
               ),
@@ -402,8 +416,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             textInputAction: TextInputAction.search,
             onFieldSubmitted: (_) => _submit(),
             validator: (value) => value == null || value.trim().isEmpty
-                ? '検索キーワードを入力してください。'
+                ? l10n.keywordRequired
                 : null,
+            errorBuilder: (context, _) {
+              final theme = Theme.of(context);
+
+              return Text(
+                AppLocalizations.of(context).keywordRequired,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -411,8 +435,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _content(SearchState state, Set<int> viewedKeys) {
+    final l10n = AppLocalizations.of(context);
     return switch (state) {
-      SearchIdle() => const Center(child: Text('キーワードを入力して検索してください。')),
+      SearchIdle() => Center(child: Text(l10n.searchPrompt)),
 
       SearchLoading() => Center(
         child: Column(
@@ -420,11 +445,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(height: 12),
-            const Text('検索中…'),
+            Text(l10n.searching),
             TextButton(
               onPressed: () =>
                   ref.read(searchControllerProvider.notifier).cancel(),
-              child: const Text('キャンセル'),
+              child: Text(l10n.cancel),
             ),
           ],
         ),
@@ -440,7 +465,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onPressed: () => unawaited(
                 ref.read(searchControllerProvider.notifier).search(query),
               ),
-              child: const Text('再試行'),
+              child: Text(l10n.retry),
             ),
           ],
         ),
@@ -449,16 +474,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       SearchEmpty(:final totalCount, :final incompleteResults) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (incompleteResults) const Text('検索結果が不完全な可能性があります。'),
-          Text('表示中：0件（総件数：$totalCount件）'),
+          if (incompleteResults) Text(l10n.incompleteResultsWarning),
+          Text(l10n.searchEmptyCount(totalCount)),
           Expanded(
             child: Center(
               child: Text(
                 incompleteResults
-                    ? '表示できる結果がありません。検索結果が不完全な可能性があります。'
+                    ? l10n.searchEmptyIncomplete
                     : totalCount == 0
-                    ? '一致するリポジトリは見つかりませんでした。'
-                    : 'このページには表示できるリポジトリがありません。',
+                    ? l10n.searchNoMatches
+                    : l10n.searchEmptyPage,
               ),
             ),
           ),
@@ -474,7 +499,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (incompleteResults) const Text('検索結果が不完全な可能性があります。'),
+            if (incompleteResults) Text(l10n.incompleteResultsWarning),
             _resultCountLabel(context, items.length, totalCount),
             const SizedBox(height: 8),
             Expanded(
@@ -514,7 +539,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               Text(repository.name),
                               Text(
                                 '${repository.fullName} / '
-                                '${repository.language ?? '未指定'}',
+                                '${repository.language ?? l10n.languageUnspecified}',
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -527,9 +552,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
                     // 閲覧済みの表示は維持する。
                     trailing: viewedKeys.contains(repository.key.id)
-                        ? const Icon(
+                        ? Icon(
                             Icons.check_circle_outline,
-                            semanticLabel: '閲覧済み',
+                            semanticLabel: l10n.viewed,
                           )
                         : null,
                   );
@@ -543,12 +568,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   String _problemMessage(SearchProblem problem) {
     return switch (problem) {
-      ApiSearchProblem(:final failure) => failure.safeMessage,
-      UnexpectedSearchProblem() => '検索処理中に問題が発生しました。',
+      ApiSearchProblem(:final failure) => localizeApiFailure(
+        AppLocalizations.of(context),
+        failure,
+      ),
+      UnexpectedSearchProblem() => AppLocalizations.of(
+        context,
+      ).unexpectedSearchError,
     };
   }
 
   Widget _loadMoreFooter(LoadMoreState loadMore) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: switch (loadMore) {
@@ -557,7 +588,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             onPressed: () => unawaited(
               ref.read(searchControllerProvider.notifier).loadMore(),
             ),
-            child: const Text('もっと読み込む'),
+            child: Text(l10n.loadMore),
           ),
         ),
 
@@ -565,11 +596,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const CircularProgressIndicator(),
-            const Text('追加読み込み中…'),
+            Text(l10n.loadingMore),
             TextButton(
               onPressed: () =>
                   ref.read(searchControllerProvider.notifier).cancel(),
-              child: const Text('キャンセル'),
+              child: Text(l10n.cancel),
             ),
           ],
         ),
@@ -582,15 +613,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onPressed: () => unawaited(
                 ref.read(searchControllerProvider.notifier).retryLoadMore(),
               ),
-              child: const Text('追加読み込みを再試行'),
+              child: Text(l10n.retryLoadMore),
             ),
           ],
         ),
         LoadMoreEnd(:final reason) => Center(
           child: Text(switch (reason) {
-            SearchEndReason.githubLimitReached =>
-              'GitHub検索APIの取得上限（1,000件）に達しました。',
-            SearchEndReason.exhausted => 'これ以上の結果はありません。',
+            SearchEndReason.githubLimitReached => l10n.githubSearchLimitReached,
+            SearchEndReason.exhausted => l10n.noMoreResults,
           }),
         ),
       },

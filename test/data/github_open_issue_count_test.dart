@@ -66,11 +66,17 @@ void main() {
       expect(
         () => parseOpenIssueCount(utf8.encode(body)),
         throwsA(
-          isA<ApiFailure>().having(
-            (failure) => failure.kind,
-            'kind',
-            ApiFailureKind.invalidResponse,
-          ),
+          isA<ApiFailure>()
+              .having(
+                (failure) => failure.kind,
+                'kind',
+                ApiFailureKind.invalidResponse,
+              )
+              .having(
+                (failure) => failure.reason,
+                'reason',
+                ApiFailureReason.issueCountUnverified,
+              ),
         ),
       );
     }
