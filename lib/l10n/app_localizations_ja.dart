@@ -276,4 +276,72 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get apiSimulatedDetailFailure => '仮の詳細取得失敗です。再試行してください。';
+
+  @override
+  String get diagnosticDebugOnly => '開発ビルド専用の画面です';
+
+  @override
+  String get diagnosticClearHistory => '履歴を消去';
+
+  @override
+  String get diagnosticEmptyHistory => '通信履歴はまだありません';
+
+  @override
+  String get diagnosticDetailOperation => '詳細';
+
+  @override
+  String diagnosticEventTitle(String operation, String status) {
+    return '$operation / $status';
+  }
+
+  @override
+  String diagnosticRecordedAt(String dateTime) {
+    return '記録：$dateTime';
+  }
+
+  @override
+  String get diagnosticResult => '結果';
+
+  @override
+  String get diagnosticRemainingLimit => '残り / 上限';
+
+  @override
+  String get diagnosticNotReported => '未通知';
+
+  @override
+  String diagnosticRetryAfterSeconds(int seconds) {
+    return '$seconds秒';
+  }
+
+  @override
+  String get diagnosticPolicyRetryAt => 'アプリ側の再試行目安';
+
+  @override
+  String get diagnosticUnknownRetryAt => '解除時刻不明（送信停止中）';
+
+  @override
+  String get diagnosticPolicyBlockedAfterResponse => '応答後の送信制限';
+
+  @override
+  String get diagnosticResponse => 'HTTP応答';
+
+  @override
+  String get diagnosticBlockedByRateLimit => '送信前に制限';
+
+  @override
+  String get diagnosticCanceledBeforeSend => '送信前キャンセル';
+
+  @override
+  String get diagnosticTimeout => 'タイムアウト';
+
+  @override
+  String get diagnosticNetworkFailure => '通信失敗';
+
+  @override
+  String get diagnosticNotRecorded => '未記録';
+
+  @override
+  String diagnosticDeviceTime(String dateTime) {
+    return '$dateTime（端末時刻）';
+  }
 }

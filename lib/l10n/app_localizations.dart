@@ -518,6 +518,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Simulated detail request failure. Please try again.'**
   String get apiSimulatedDetailFailure;
+
+  /// No description provided for @diagnosticDebugOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'This screen is available only in debug builds.'**
+  String get diagnosticDebugOnly;
+
+  /// No description provided for @diagnosticClearHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear history'**
+  String get diagnosticClearHistory;
+
+  /// No description provided for @diagnosticEmptyHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'No request history yet.'**
+  String get diagnosticEmptyHistory;
+
+  /// No description provided for @diagnosticDetailOperation.
+  ///
+  /// In en, this message translates to:
+  /// **'Detail'**
+  String get diagnosticDetailOperation;
+
+  /// No description provided for @diagnosticEventTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{operation} / {status}'**
+  String diagnosticEventTitle(String operation, String status);
+
+  /// No description provided for @diagnosticRecordedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded: {dateTime}'**
+  String diagnosticRecordedAt(String dateTime);
+
+  /// No description provided for @diagnosticResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Result'**
+  String get diagnosticResult;
+
+  /// No description provided for @diagnosticRemainingLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining / Limit'**
+  String get diagnosticRemainingLimit;
+
+  /// No description provided for @diagnosticNotReported.
+  ///
+  /// In en, this message translates to:
+  /// **'Not reported'**
+  String get diagnosticNotReported;
+
+  /// No description provided for @diagnosticRetryAfterSeconds.
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds} s'**
+  String diagnosticRetryAfterSeconds(int seconds);
+
+  /// No description provided for @diagnosticPolicyRetryAt.
+  ///
+  /// In en, this message translates to:
+  /// **'App retry time'**
+  String get diagnosticPolicyRetryAt;
+
+  /// No description provided for @diagnosticUnknownRetryAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume time unknown (requests paused)'**
+  String get diagnosticUnknownRetryAt;
+
+  /// No description provided for @diagnosticPolicyBlockedAfterResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests paused after response'**
+  String get diagnosticPolicyBlockedAfterResponse;
+
+  /// No description provided for @diagnosticResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTP response'**
+  String get diagnosticResponse;
+
+  /// No description provided for @diagnosticBlockedByRateLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked before sending'**
+  String get diagnosticBlockedByRateLimit;
+
+  /// No description provided for @diagnosticCanceledBeforeSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Canceled before sending'**
+  String get diagnosticCanceledBeforeSend;
+
+  /// No description provided for @diagnosticTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Timeout'**
+  String get diagnosticTimeout;
+
+  /// No description provided for @diagnosticNetworkFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Network failure'**
+  String get diagnosticNetworkFailure;
+
+  /// No description provided for @diagnosticNotRecorded.
+  ///
+  /// In en, this message translates to:
+  /// **'Not recorded'**
+  String get diagnosticNotRecorded;
+
+  /// No description provided for @diagnosticDeviceTime.
+  ///
+  /// In en, this message translates to:
+  /// **'{dateTime} (device time)'**
+  String diagnosticDeviceTime(String dateTime);
 }
 
 class _AppLocalizationsDelegate

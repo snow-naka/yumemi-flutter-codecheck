@@ -83,5 +83,26 @@
   "apiBlockedBeforeSendKnown": "GitHubへの送信を一時停止しています。時間をおいて再試行してください。",
   "apiSimulatedSearchFailure": "仮の検索失敗です。もう一度検索してください。",
   "apiSimulatedRepositoryNotFound": "対象の仮データを取得できませんでした。",
-  "apiSimulatedDetailFailure": "仮の詳細取得失敗です。再試行してください。"
+  "apiSimulatedDetailFailure": "仮の詳細取得失敗です。再試行してください。",
+
+  "diagnosticDebugOnly": "開発ビルド専用の画面です",
+  "diagnosticClearHistory": "履歴を消去",
+  "diagnosticEmptyHistory": "通信履歴はまだありません",
+  "diagnosticDetailOperation": "詳細",
+  "diagnosticEventTitle": "{operation} / {status}",
+  "diagnosticRecordedAt": "記録：{dateTime}",
+  "diagnosticResult": "結果",
+  "diagnosticRemainingLimit": "残り / 上限",
+  "diagnosticNotReported": "未通知",
+  "diagnosticRetryAfterSeconds": "{seconds}秒",
+  "diagnosticPolicyRetryAt": "アプリ側の再試行目安",
+  "diagnosticUnknownRetryAt": "解除時刻不明（送信停止中）",
+  "diagnosticPolicyBlockedAfterResponse": "応答後の送信制限",
+  "diagnosticResponse": "HTTP応答",
+  "diagnosticBlockedByRateLimit": "送信前に制限",
+  "diagnosticCanceledBeforeSend": "送信前キャンセル",
+  "diagnosticTimeout": "タイムアウト",
+  "diagnosticNetworkFailure": "通信失敗",
+  "diagnosticNotRecorded": "未記録",
+  "diagnosticDeviceTime": "{dateTime}（端末時刻）"
 }

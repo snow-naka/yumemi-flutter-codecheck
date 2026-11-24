@@ -289,4 +289,75 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get apiSimulatedDetailFailure =>
       'Simulated detail request failure. Please try again.';
+
+  @override
+  String get diagnosticDebugOnly =>
+      'This screen is available only in debug builds.';
+
+  @override
+  String get diagnosticClearHistory => 'Clear history';
+
+  @override
+  String get diagnosticEmptyHistory => 'No request history yet.';
+
+  @override
+  String get diagnosticDetailOperation => 'Detail';
+
+  @override
+  String diagnosticEventTitle(String operation, String status) {
+    return '$operation / $status';
+  }
+
+  @override
+  String diagnosticRecordedAt(String dateTime) {
+    return 'Recorded: $dateTime';
+  }
+
+  @override
+  String get diagnosticResult => 'Result';
+
+  @override
+  String get diagnosticRemainingLimit => 'Remaining / Limit';
+
+  @override
+  String get diagnosticNotReported => 'Not reported';
+
+  @override
+  String diagnosticRetryAfterSeconds(int seconds) {
+    return '$seconds s';
+  }
+
+  @override
+  String get diagnosticPolicyRetryAt => 'App retry time';
+
+  @override
+  String get diagnosticUnknownRetryAt =>
+      'Resume time unknown (requests paused)';
+
+  @override
+  String get diagnosticPolicyBlockedAfterResponse =>
+      'Requests paused after response';
+
+  @override
+  String get diagnosticResponse => 'HTTP response';
+
+  @override
+  String get diagnosticBlockedByRateLimit => 'Blocked before sending';
+
+  @override
+  String get diagnosticCanceledBeforeSend => 'Canceled before sending';
+
+  @override
+  String get diagnosticTimeout => 'Timeout';
+
+  @override
+  String get diagnosticNetworkFailure => 'Network failure';
+
+  @override
+  String get diagnosticNotRecorded => 'Not recorded';
+
+  @override
+  String diagnosticDeviceTime(String dateTime) {
+    return '$dateTime (device time)';
+  }
 }
