@@ -109,6 +109,29 @@ class AppLocalizationsEn extends AppLocalizations {
       'There are no repositories to display on this page.';
 
   @override
+  String get issueCountFetchMode => 'Open issue count fetch mode';
+
+  @override
+  String get issueCountFetchModeAutomatic => 'Automatic (open or refresh)';
+
+  @override
+  String get issueCountFetchModeManual => 'Manual (on demand)';
+
+  @override
+  String get issueCountFetchModeLoading => 'Loading fetch mode';
+
+  @override
+  String get issueCountFetchModeSaving => 'Saving fetch mode';
+
+  @override
+  String get issueCountFetchModeReadFailed =>
+      'Could not load the fetch mode. Manual fetching is used.';
+
+  @override
+  String get issueCountFetchModeSaveFailed =>
+      'Could not save the issue count fetch mode.';
+
+  @override
   String get languageUnspecified => 'Not specified';
 
   @override
@@ -238,7 +261,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get openIssuesApiNotice =>
-      'Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.';
+      'Fetching the open issue count uses the GitHub Search API and affects its rate limit. Cached counts are reused when reopening details. Automatic mode also refreshes the count when details are refreshed.';
 
   @override
   String get apiNetworkError => 'Failed to communicate with GitHub.';

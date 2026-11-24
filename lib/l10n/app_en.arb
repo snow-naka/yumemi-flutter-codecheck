@@ -68,7 +68,13 @@
   "searchEmptyIncomplete": "No results to display. Search results may be incomplete.",
   "searchNoMatches": "No matching repositories were found.",
   "searchEmptyPage": "There are no repositories to display on this page.",
-
+  "issueCountFetchMode": "Open issue count fetch mode",
+  "issueCountFetchModeAutomatic": "Automatic (open or refresh)",
+  "issueCountFetchModeManual": "Manual (on demand)",
+  "issueCountFetchModeLoading": "Loading fetch mode",
+  "issueCountFetchModeSaving": "Saving fetch mode",
+  "issueCountFetchModeReadFailed": "Could not load the fetch mode. Manual fetching is used.",
+  "issueCountFetchModeSaveFailed": "Could not save the issue count fetch mode.",
   "languageUnspecified": "Not specified",
   "viewed": "Viewed",
 
@@ -156,8 +162,7 @@
     }
   },
   "unexpectedIssueError": "An unexpected error occurred while fetching the issue count.",
-  "openIssuesApiNotice": "Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.",
-
+  "openIssuesApiNotice": "Fetching the open issue count uses the GitHub Search API and affects its rate limit. Cached counts are reused when reopening details. Automatic mode also refreshes the count when details are refreshed.",
   "apiNetworkError": "Failed to communicate with GitHub.",
   "apiTimeoutError": "The request timed out.",
   "apiInvalidResponse": "The GitHub API returned an invalid response.",

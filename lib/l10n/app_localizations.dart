@@ -249,6 +249,48 @@ abstract class AppLocalizations {
   /// **'There are no repositories to display on this page.'**
   String get searchEmptyPage;
 
+  /// No description provided for @issueCountFetchMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Open issue count fetch mode'**
+  String get issueCountFetchMode;
+
+  /// No description provided for @issueCountFetchModeAutomatic.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic (open or refresh)'**
+  String get issueCountFetchModeAutomatic;
+
+  /// No description provided for @issueCountFetchModeManual.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual (on demand)'**
+  String get issueCountFetchModeManual;
+
+  /// No description provided for @issueCountFetchModeLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading fetch mode'**
+  String get issueCountFetchModeLoading;
+
+  /// No description provided for @issueCountFetchModeSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving fetch mode'**
+  String get issueCountFetchModeSaving;
+
+  /// No description provided for @issueCountFetchModeReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the fetch mode. Manual fetching is used.'**
+  String get issueCountFetchModeReadFailed;
+
+  /// No description provided for @issueCountFetchModeSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the issue count fetch mode.'**
+  String get issueCountFetchModeSaveFailed;
+
   /// No description provided for @languageUnspecified.
   ///
   /// In en, this message translates to:
@@ -432,7 +474,7 @@ abstract class AppLocalizations {
   /// No description provided for @openIssuesApiNotice.
   ///
   /// In en, this message translates to:
-  /// **'Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.'**
+  /// **'Fetching the open issue count uses the GitHub Search API and affects its rate limit. Cached counts are reused when reopening details. Automatic mode also refreshes the count when details are refreshed.'**
   String get openIssuesApiNotice;
 
   /// No description provided for @apiNetworkError.
