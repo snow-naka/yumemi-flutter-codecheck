@@ -18,6 +18,42 @@ Issue #3の段階5で行った検索・詳細アプリのAndroid実操作とロ�
 
 Windows版Dartは実起動時に「アプリケーション制御ポリシーによってこのファイルがブロックされました」となり、実行できなかった。ポリシーを変更せずWSL版を使用する。WindowsのADBとエミュレーターは実行可能。Windows側でFlutterを実行したり、ソースを複製してビルドしたりする構成にはしない。
 
+## 2026-11-24：Flutter SDK更新
+
+公式課題の最新安定版使用方針に合わせ、WSL側のFlutter SDKを更新した。
+
+| 項目 | 更新前 | 更新後 |
+|---|---|---|
+| Flutter | 3.50.0 | 3.50.1 |
+| Dart | 3.14.0 | 3.14.0 |
+| Framework revision | ab2912035e | ae9b586f34 |
+| Channel | stable | stable |
+
+### 検証結果
+
+- `flutter pub get --enforce-lockfile`：成功
+- `flutter gen-l10n`：成功、生成コードの差分なし
+- `flutter analyze`：問題なし
+- `flutter test`：全307件成功
+- Android Release APKのビルド：成功（52.7MB）
+- Androidエミュレーターへの上書きインストール：成功
+
+アプリ本体のソースコードや依存パッケージを変更することなく、SDKを更新できた。
+
+GitHub ActionsのFlutter SDK指定も3.50.1へ変更した。
+
+### Android開発環境
+
+- 最小対応Android API：24
+- Target SDK：36
+- Compile SDK：36
+- Java：OpenJDK 17
+- Gradle：9.5.0
+
+Android SDKの一部ライセンスに関する警告は残っていたが、Releaseビルドは成功した。追加のライセンス承認や開発環境の変更は行っていない。
+
+Release APKは開発用のDebug署名鍵を使用しており、正式なストア配布用ではなく検証用の成果物として扱う。
+
 ## SDKの使い分け
 
 今回の実行シェルでは`flutter`・`dart`がWindows側を指していた。WSLでの実行時は、次のようにWSL用SDKを明示する。以下の環境変数はそのターミナル内だけの設定で、ユーザーのシェル設定ファイルは変更していない。
