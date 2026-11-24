@@ -434,6 +434,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.'**
   String get openIssuesApiNotice;
+
+  /// No description provided for @apiNetworkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to communicate with GitHub.'**
+  String get apiNetworkError;
+
+  /// No description provided for @apiTimeoutError.
+  ///
+  /// In en, this message translates to:
+  /// **'The request timed out.'**
+  String get apiTimeoutError;
+
+  /// No description provided for @apiInvalidResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'The GitHub API returned an invalid response.'**
+  String get apiInvalidResponse;
+
+  /// No description provided for @apiRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'The GitHub API rate limit has been reached.'**
+  String get apiRateLimited;
+
+  /// No description provided for @apiHttpError.
+  ///
+  /// In en, this message translates to:
+  /// **'The GitHub API returned an error.'**
+  String get apiHttpError;
+
+  /// No description provided for @apiInvalidSearchCondition.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid search parameters.'**
+  String get apiInvalidSearchCondition;
+
+  /// No description provided for @apiInvalidRepositoryKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid repository specification.'**
+  String get apiInvalidRepositoryKey;
+
+  /// No description provided for @apiIssueCountUnverified.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not verify the open issue count.'**
+  String get apiIssueCountUnverified;
+
+  /// No description provided for @apiRepositoryMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The returned repository differs from the search result.'**
+  String get apiRepositoryMismatch;
+
+  /// No description provided for @apiBlockedBeforeSendUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests to GitHub are temporarily paused. The retry time is unknown.'**
+  String get apiBlockedBeforeSendUnknown;
+
+  /// No description provided for @apiBlockedBeforeSendKnown.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests to GitHub are temporarily paused. Please try again later.'**
+  String get apiBlockedBeforeSendKnown;
+
+  /// No description provided for @apiSimulatedSearchFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Simulated search failure. Please search again.'**
+  String get apiSimulatedSearchFailure;
+
+  /// No description provided for @apiSimulatedRepositoryNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not retrieve the simulated repository.'**
+  String get apiSimulatedRepositoryNotFound;
+
+  /// No description provided for @apiSimulatedDetailFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Simulated detail request failure. Please try again.'**
+  String get apiSimulatedDetailFailure;
 }
 
 class _AppLocalizationsDelegate

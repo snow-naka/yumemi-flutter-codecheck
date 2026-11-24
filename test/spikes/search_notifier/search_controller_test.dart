@@ -170,9 +170,7 @@ void main() {
 
     final loadTask = controller.loadMore();
 
-    requests[1].completeError(
-      const ApiFailure(kind: ApiFailureKind.network, safeMessage: 'テスト用の通信失敗'),
-    );
+    requests[1].completeError(const ApiFailure(kind: ApiFailureKind.network));
     await loadTask;
 
     final failed =
@@ -385,9 +383,7 @@ void main() {
     expect(successB.items.map((item) => item.key.id).toList(), [10, 11]);
 
     // キャンセル済みAの追加取得が後から失敗する
-    requests[1].completeError(
-      const ApiFailure(kind: ApiFailureKind.network, safeMessage: '古い検索の通信失敗'),
-    );
+    requests[1].completeError(const ApiFailure(kind: ApiFailureKind.network));
     await loadTask;
 
     // AのエラーでBの成功状態が上書きされない

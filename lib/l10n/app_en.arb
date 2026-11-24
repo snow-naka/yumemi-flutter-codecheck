@@ -156,5 +156,20 @@
     }
   },
   "unexpectedIssueError": "An unexpected error occurred while fetching the issue count.",
-  "openIssuesApiNotice": "Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit."
+  "openIssuesApiNotice": "Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.",
+
+  "apiNetworkError": "Failed to communicate with GitHub.",
+  "apiTimeoutError": "The request timed out.",
+  "apiInvalidResponse": "The GitHub API returned an invalid response.",
+  "apiRateLimited": "The GitHub API rate limit has been reached.",
+  "apiHttpError": "The GitHub API returned an error.",
+  "apiInvalidSearchCondition": "Invalid search parameters.",
+  "apiInvalidRepositoryKey": "Invalid repository specification.",
+  "apiIssueCountUnverified": "Could not verify the open issue count.",
+  "apiRepositoryMismatch": "The returned repository differs from the search result.",
+  "apiBlockedBeforeSendUnknown": "Requests to GitHub are temporarily paused. The retry time is unknown.",
+  "apiBlockedBeforeSendKnown": "Requests to GitHub are temporarily paused. Please try again later.",
+  "apiSimulatedSearchFailure": "Simulated search failure. Please search again.",
+  "apiSimulatedRepositoryNotFound": "Could not retrieve the simulated repository.",
+  "apiSimulatedDetailFailure": "Simulated detail request failure. Please try again."
 }

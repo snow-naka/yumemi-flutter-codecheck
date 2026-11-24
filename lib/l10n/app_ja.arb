@@ -68,5 +68,20 @@
   "retryOpenIssuesSemantics": "Open Issue数の取得を再試行",
   "issueFetchedAt": "取得日時：{dateTime}（端末時刻）",
   "unexpectedIssueError": "Issue数の取得中に問題が発生しました。",
-  "openIssuesApiNotice": "※ Open Issue数の取得・再取得・再試行には、操作ごとにGitHub Search APIを1回使用します。APIのレート制限に影響します。"
+  "openIssuesApiNotice": "※ Open Issue数の取得・再取得・再試行には、操作ごとにGitHub Search APIを1回使用します。APIのレート制限に影響します。",
+
+  "apiNetworkError": "GitHubとの通信に失敗しました。",
+  "apiTimeoutError": "通信がタイムアウトしました。",
+  "apiInvalidResponse": "GitHub APIの応答形式が不正です。",
+  "apiRateLimited": "GitHub APIの利用制限中です。",
+  "apiHttpError": "GitHub APIからエラーが返されました。",
+  "apiInvalidSearchCondition": "検索条件が不正です。",
+  "apiInvalidRepositoryKey": "リポジトリの指定が不正です。",
+  "apiIssueCountUnverified": "Issue数を確認できませんでした。",
+  "apiRepositoryMismatch": "検索時と異なるリポジトリが返されました。",
+  "apiBlockedBeforeSendUnknown": "GitHubへの送信を一時停止しています。再試行可能な時刻は不明です。",
+  "apiBlockedBeforeSendKnown": "GitHubへの送信を一時停止しています。時間をおいて再試行してください。",
+  "apiSimulatedSearchFailure": "仮の検索失敗です。もう一度検索してください。",
+  "apiSimulatedRepositoryNotFound": "対象の仮データを取得できませんでした。",
+  "apiSimulatedDetailFailure": "仮の詳細取得失敗です。再試行してください。"
 }

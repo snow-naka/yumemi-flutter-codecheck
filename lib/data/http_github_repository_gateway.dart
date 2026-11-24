@@ -63,7 +63,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
         (page - 1) * perPage >= 1000) {
       throw const ApiFailure(
         kind: ApiFailureKind.invalidRequest,
-        safeMessage: '検索条件が不正です。',
+        reason: ApiFailureReason.invalidSearchCondition,
       );
     }
 
@@ -129,10 +129,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
               ),
       );
     } catch (_) {
-      throw const ApiFailure(
-        kind: ApiFailureKind.invalidResponse,
-        safeMessage: 'GitHub APIの応答形式が不正です。',
-      );
+      throw const ApiFailure(kind: ApiFailureKind.invalidResponse);
     }
   }
 
@@ -152,12 +149,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     void completeTimeout() {
       if (caller.isCompleted) return;
 
-      caller.completeError(
-        const ApiFailure(
-          kind: ApiFailureKind.timeout,
-          safeMessage: '通信がタイムアウトしました。',
-        ),
-      );
+      caller.completeError(const ApiFailure(kind: ApiFailureKind.timeout));
     }
 
     var started = false;
@@ -346,15 +338,9 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     } on http.RequestAbortedException {
       rethrow;
     } on TlsException {
-      throw const ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'GitHubとの通信に失敗しました。',
-      );
+      throw const ApiFailure(kind: ApiFailureKind.network);
     } on http.ClientException {
-      throw const ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'GitHubとの通信に失敗しました。',
-      );
+      throw const ApiFailure(kind: ApiFailureKind.network);
     }
 
     if (response.statusCode == 200) {
@@ -385,7 +371,6 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
       if (decision.isRateLimited) {
         throw ApiFailure(
           kind: ApiFailureKind.rateLimited,
-          safeMessage: 'GitHub APIの利用制限中です。',
           httpStatus: response.statusCode,
           retryAt: _policy.retryAt(resource, _now().toUtc()),
         );
@@ -399,7 +384,6 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
           >= 500 => ApiFailureKind.serverError,
           _ => ApiFailureKind.otherHttp,
         },
-        safeMessage: 'GitHub APIからエラーが返されました。',
         httpStatus: response.statusCode,
       );
     }
@@ -464,7 +448,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
     if (key.id <= 0 || key.owner.trim().isEmpty || key.name.trim().isEmpty) {
       throw const ApiFailure(
         kind: ApiFailureKind.invalidRequest,
-        safeMessage: 'リポジトリの指定が不正です。',
+        reason: ApiFailureReason.invalidRepositoryKey,
       );
     }
 
@@ -490,10 +474,7 @@ final class HttpGitHubRepositoryGateway implements GitHubRepositoryGateway {
 
       return RepositoryDetail(summary: summary, watcherCount: watcherCount);
     } catch (_) {
-      throw const ApiFailure(
-        kind: ApiFailureKind.invalidResponse,
-        safeMessage: 'GitHub APIの応答形式が不正です。',
-      );
+      throw const ApiFailure(kind: ApiFailureKind.invalidResponse);
     }
   }
 

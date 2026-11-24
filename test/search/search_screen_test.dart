@@ -203,19 +203,16 @@ void main() {
       await start(tester);
       await search(tester, 'failed');
       requests.single.completeError(
-        const ApiFailure(
-          kind: ApiFailureKind.network,
-          safeMessage: 'テスト用の取得失敗',
-        ),
+        const ApiFailure(kind: ApiFailureKind.network),
       );
       await tester.pump();
-      expect(find.text('テスト用の取得失敗'), findsOneWidget);
+      expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
       expect(tester.widget<IconButton>(submit).onPressed, isNotNull);
       await tester.enterText(input, 'edited');
       await tester.tap(find.text('再試行'));
       await tester.pump();
       expect(queries, ['failed', 'failed']);
-      expect(find.text('テスト用の取得失敗'), findsNothing);
+      expect(find.text('GitHubとの通信に失敗しました。'), findsNothing);
       expect(tester.widget<TextFormField>(input).controller!.text, 'edited');
       requests.last.complete(resultPage());
       await tester.pump();
@@ -314,12 +311,7 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
 
     // 追加読み込みで通信エラー
-    requests[1].completeError(
-      const ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'テスト用の追加読み込み失敗',
-      ),
-    );
+    requests[1].completeError(const ApiFailure(kind: ApiFailureKind.network));
 
     await tester.pump();
 
@@ -327,7 +319,7 @@ void main() {
     expect(find.text('repository-0'), findsOneWidget);
     expect(find.text('repository-1'), findsOneWidget);
     expect(find.text('2件表示 / 初回総件数 3件'), findsOneWidget);
-    expect(find.text('テスト用の追加読み込み失敗'), findsOneWidget);
+    expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
     expect(find.text('追加読み込みを再試行'), findsOneWidget);
 
     // 再試行する

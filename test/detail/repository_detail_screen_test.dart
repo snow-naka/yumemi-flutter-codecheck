@@ -212,10 +212,10 @@ void main() {
           container.read(searchControllerProvider) as SearchResults;
       await open(tester);
       requests.single.completeError(
-        const ApiFailure(kind: ApiFailureKind.network, safeMessage: '仮の詳細取得失敗'),
+        const ApiFailure(kind: ApiFailureKind.network),
       );
       await tester.pump();
-      expect(find.text('仮の詳細取得失敗'), findsOneWidget);
+      expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
       expect(find.text('repository-0'), findsOneWidget);
       expect(find.textContaining('Watcher数：'), findsNothing);
       await tester.pump(const Duration(seconds: 30));
@@ -225,7 +225,7 @@ void main() {
       await tester.pump();
       expect(keys, hasLength(2));
       expect(find.text('詳細情報を取得中…'), findsOneWidget);
-      expect(find.text('仮の詳細取得失敗'), findsNothing);
+      expect(find.text('GitHubとの通信に失敗しました。'), findsNothing);
       requests.last.complete(
         RepositoryDetail(summary: searchState.items.first, watcherCount: 8),
       );
@@ -260,10 +260,7 @@ void main() {
           container.read(searchControllerProvider) as SearchResults;
       await open(tester, name: 'repository-12');
       requests.single.completeError(
-        const ApiFailure(
-          kind: ApiFailureKind.network,
-          safeMessage: 'detail failed',
-        ),
+        const ApiFailure(kind: ApiFailureKind.network),
       );
       await tester.pump();
       await back(tester);
@@ -482,14 +479,11 @@ void main() {
     await tester.pump();
 
     issueRequests.single.completeError(
-      const ApiFailure(
-        kind: ApiFailureKind.rateLimited,
-        safeMessage: 'テスト用の送信待機エラー',
-      ),
+      const ApiFailure(kind: ApiFailureKind.rateLimited),
     );
     await tester.pump();
 
-    expect(find.text('テスト用の送信待機エラー'), findsOneWidget);
+    expect(find.text('GitHub APIの利用制限中です。'), findsOneWidget);
 
     expect(find.text('Watcher数：8'), findsOneWidget);
 
@@ -679,15 +673,12 @@ void main() {
 
     // 2. 詳細取得に失敗しても7件を維持する。
     requests.single.completeError(
-      const ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'detail failed',
-      ),
+      const ApiFailure(kind: ApiFailureKind.network),
     );
 
     await tester.pump();
 
-    expect(find.text('detail failed'), findsOneWidget);
+    expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
     expect(find.text('Open Issue＋PR数：7'), findsOneWidget);
     expect(issueKeys, isEmpty);
 
@@ -880,11 +871,9 @@ void main() {
 
     await tester.tap(find.text('再試行'));
     await tester.pump();
-    requests.last.completeError(
-      const ApiFailure(kind: ApiFailureKind.network, safeMessage: '詳細取得失敗'),
-    );
+    requests.last.completeError(const ApiFailure(kind: ApiFailureKind.network));
     await tester.pump();
-    expect(find.text('詳細取得失敗'), findsOneWidget);
+    expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
     expect(tester.widget<OutlinedButton>(issueButton).onPressed, isNull);
     expect(issueKeys, isEmpty);
   });
@@ -930,10 +919,10 @@ void main() {
 
     await tester.tap(reload);
     issueRequests.last.completeError(
-      const ApiFailure(kind: ApiFailureKind.network, safeMessage: 'Issue再取得失敗'),
+      const ApiFailure(kind: ApiFailureKind.network),
     );
     await tester.pump();
-    expect(find.text('Issue再取得失敗'), findsOneWidget);
+    expect(find.text('GitHubとの通信に失敗しました。'), findsOneWidget);
     expect(tester.widget<OutlinedButton>(refresh).onPressed, isNotNull);
     expect(cache.get(summary.key), same(saved));
   });
@@ -1059,7 +1048,7 @@ void main() {
     await tester.pump();
 
     issueRequests.single.completeError(
-      const ApiFailure(kind: ApiFailureKind.network, safeMessage: 'テスト用の取得失敗'),
+      const ApiFailure(kind: ApiFailureKind.network),
     );
     await tester.pump();
 
@@ -1076,10 +1065,7 @@ void main() {
     await open(tester);
 
     requests.single.completeError(
-      const ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'テスト用の詳細取得失敗',
-      ),
+      const ApiFailure(kind: ApiFailureKind.network),
     );
     await tester.pump();
 
@@ -1263,13 +1249,12 @@ void main() {
 
     // Issue数の取得に失敗。
     issueRequests.single.completeError(
-      const ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'Test issue request failure.',
-      ),
+      const ApiFailure(kind: ApiFailureKind.network),
     );
 
     await tester.pumpAndSettle();
+
+    expect(find.text('Failed to communicate with GitHub.'), findsOneWidget);
 
     expect(
       find.text('Open issues (excluding PRs): Not fetched'),
@@ -1302,7 +1287,7 @@ void main() {
 
     expect(find.text('Open issues (excluding PRs): Not fetched'), findsNothing);
 
-    expect(find.text('Test issue request failure.'), findsNothing);
+    expect(find.text('Failed to communicate with GitHub.'), findsNothing);
 
     expectAccessibleButton(
       tester,

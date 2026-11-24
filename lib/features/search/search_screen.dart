@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 
 import '../../devtools/api_diagnostics_screen.dart';
+import '../../l10n/api_failure_localizer.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/repository_models.dart';
 import '../detail/repository_detail_provider.dart';
@@ -567,7 +568,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   String _problemMessage(SearchProblem problem) {
     return switch (problem) {
-      ApiSearchProblem(:final failure) => failure.safeMessage,
+      ApiSearchProblem(:final failure) => localizeApiFailure(
+        AppLocalizations.of(context),
+        failure,
+      ),
       UnexpectedSearchProblem() => AppLocalizations.of(
         context,
       ).unexpectedSearchError,

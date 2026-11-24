@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../l10n/api_failure_localizer.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/api_failure.dart';
 import '../../models/repository_models.dart';
@@ -97,7 +98,10 @@ class RepositoryDetailScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         Text(
                           state.error is ApiFailure
-                              ? (state.error! as ApiFailure).safeMessage
+                              ? localizeApiFailure(
+                                  l10n,
+                                  state.error! as ApiFailure,
+                                )
                               : l10n.unexpectedDetailError,
                         ),
                         OutlinedButton(
@@ -241,6 +245,20 @@ class _AccessibleActionLabel extends StatelessWidget {
   }
 }
 
+sealed class _IssueLoadProblem {
+  const _IssueLoadProblem();
+}
+
+final class _IssueApiProblem extends _IssueLoadProblem {
+  const _IssueApiProblem(this.failure);
+
+  final ApiFailure failure;
+}
+
+final class _UnexpectedIssueProblem extends _IssueLoadProblem {
+  const _UnexpectedIssueProblem();
+}
+
 class _RepositoryDetailActions extends ConsumerStatefulWidget {
   const _RepositoryDetailActions({
     super.key,
@@ -263,7 +281,7 @@ class _RepositoryDetailActionsState
   bool _loading = false;
   bool _routePopped = false;
   int? _count;
-  String? _error;
+  _IssueLoadProblem? _error;
   DateTime? _fetchedAt;
   int _requestGeneration = 0;
 
@@ -357,7 +375,7 @@ class _RepositoryDetailActionsState
 
       setState(() {
         // 前回取得済みのIssue数と取得日時は維持する。
-        _error = failure.safeMessage;
+        _error = _IssueApiProblem(failure);
         _loading = false;
       });
     } catch (_) {
@@ -369,7 +387,7 @@ class _RepositoryDetailActionsState
       }
 
       setState(() {
-        _error = 'Issue数の取得中に問題が発生しました。';
+        _error = const _UnexpectedIssueProblem();
         _loading = false;
       });
     }
@@ -387,6 +405,12 @@ class _RepositoryDetailActionsState
     } else {
       status = l10n.openIssuesNotFetched;
     }
+
+    final errorMessage = switch (_error) {
+      _IssueApiProblem(:final failure) => localizeApiFailure(l10n, failure),
+      _UnexpectedIssueProblem() => l10n.unexpectedIssueError,
+      null => null,
+    };
 
     final buttonLabel = _count != null
         ? l10n.fetchAgain
@@ -430,7 +454,10 @@ class _RepositoryDetailActionsState
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
-          if (_error != null) ...[const SizedBox(height: 8), Text(_error!)],
+          if (errorMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(errorMessage),
+          ],
         ],
       ),
       action: SizedBox(

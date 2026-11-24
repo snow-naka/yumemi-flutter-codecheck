@@ -81,10 +81,7 @@ void main() {
       );
       addTearDown(first.close);
       addTearDown(second.close);
-      const failure = ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'detail failed',
-      );
+      const failure = ApiFailure(kind: ApiFailureKind.network);
       requests.first.completeError(failure);
       await container.pump();
       expect(first.read().asError?.error, same(failure));
@@ -136,10 +133,7 @@ void main() {
       );
       addTearDown(current.close);
       requests.first.completeError(
-        const ApiFailure(
-          kind: ApiFailureKind.network,
-          safeMessage: 'late failure',
-        ),
+        const ApiFailure(kind: ApiFailureKind.network),
       );
       await container.pump();
       expect(current.read().isLoading, isTrue);

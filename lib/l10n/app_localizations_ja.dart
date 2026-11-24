@@ -232,4 +232,48 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get openIssuesApiNotice =>
       '※ Open Issue数の取得・再取得・再試行には、操作ごとにGitHub Search APIを1回使用します。APIのレート制限に影響します。';
+
+  @override
+  String get apiNetworkError => 'GitHubとの通信に失敗しました。';
+
+  @override
+  String get apiTimeoutError => '通信がタイムアウトしました。';
+
+  @override
+  String get apiInvalidResponse => 'GitHub APIの応答形式が不正です。';
+
+  @override
+  String get apiRateLimited => 'GitHub APIの利用制限中です。';
+
+  @override
+  String get apiHttpError => 'GitHub APIからエラーが返されました。';
+
+  @override
+  String get apiInvalidSearchCondition => '検索条件が不正です。';
+
+  @override
+  String get apiInvalidRepositoryKey => 'リポジトリの指定が不正です。';
+
+  @override
+  String get apiIssueCountUnverified => 'Issue数を確認できませんでした。';
+
+  @override
+  String get apiRepositoryMismatch => '検索時と異なるリポジトリが返されました。';
+
+  @override
+  String get apiBlockedBeforeSendUnknown =>
+      'GitHubへの送信を一時停止しています。再試行可能な時刻は不明です。';
+
+  @override
+  String get apiBlockedBeforeSendKnown =>
+      'GitHubへの送信を一時停止しています。時間をおいて再試行してください。';
+
+  @override
+  String get apiSimulatedSearchFailure => '仮の検索失敗です。もう一度検索してください。';
+
+  @override
+  String get apiSimulatedRepositoryNotFound => '対象の仮データを取得できませんでした。';
+
+  @override
+  String get apiSimulatedDetailFailure => '仮の詳細取得失敗です。再試行してください。';
 }

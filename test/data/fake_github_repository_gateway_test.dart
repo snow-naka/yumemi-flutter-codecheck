@@ -143,10 +143,7 @@ void main() {
     'detail handler controls failure without default scripted behavior',
     () async {
       const key = RepositoryKey(id: 42, owner: 'test', name: 'controlled');
-      const failure = ApiFailure(
-        kind: ApiFailureKind.network,
-        safeMessage: 'test failure',
-      );
+      const failure = ApiFailure(kind: ApiFailureKind.network);
       final pending = Completer<RepositoryDetail>();
       final controlled = FakeGitHubRepositoryGateway(
         detailHandler: (received) {

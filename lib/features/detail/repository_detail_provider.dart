@@ -11,7 +11,7 @@ final repositoryDetailProvider = FutureProvider.autoDispose
       if (detail.summary.key.id != key.id) {
         throw const ApiFailure(
           kind: ApiFailureKind.invalidResponse,
-          safeMessage: '検索時と異なるリポジトリが返されました。',
+          reason: ApiFailureReason.repositoryMismatch,
         );
       }
       return detail;

@@ -239,4 +239,54 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get openIssuesApiNotice =>
       'Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.';
+
+  @override
+  String get apiNetworkError => 'Failed to communicate with GitHub.';
+
+  @override
+  String get apiTimeoutError => 'The request timed out.';
+
+  @override
+  String get apiInvalidResponse =>
+      'The GitHub API returned an invalid response.';
+
+  @override
+  String get apiRateLimited => 'The GitHub API rate limit has been reached.';
+
+  @override
+  String get apiHttpError => 'The GitHub API returned an error.';
+
+  @override
+  String get apiInvalidSearchCondition => 'Invalid search parameters.';
+
+  @override
+  String get apiInvalidRepositoryKey => 'Invalid repository specification.';
+
+  @override
+  String get apiIssueCountUnverified =>
+      'Could not verify the open issue count.';
+
+  @override
+  String get apiRepositoryMismatch =>
+      'The returned repository differs from the search result.';
+
+  @override
+  String get apiBlockedBeforeSendUnknown =>
+      'Requests to GitHub are temporarily paused. The retry time is unknown.';
+
+  @override
+  String get apiBlockedBeforeSendKnown =>
+      'Requests to GitHub are temporarily paused. Please try again later.';
+
+  @override
+  String get apiSimulatedSearchFailure =>
+      'Simulated search failure. Please search again.';
+
+  @override
+  String get apiSimulatedRepositoryNotFound =>
+      'Could not retrieve the simulated repository.';
+
+  @override
+  String get apiSimulatedDetailFailure =>
+      'Simulated detail request failure. Please try again.';
 }

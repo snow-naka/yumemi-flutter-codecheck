@@ -1776,11 +1776,8 @@ void main() {
         throwsA(
           isA<ApiFailure>()
               .having((e) => e.kind, 'kind', ApiFailureKind.network)
-              .having(
-                (e) => e.safeMessage,
-                'safeMessage',
-                'GitHubとの通信に失敗しました。',
-              ),
+              .having((e) => e.reason, 'reason', isNull)
+              .having((e) => e.toString(), 'toString', 'ApiFailure(network)'),
         ),
       );
     } finally {
@@ -1809,11 +1806,8 @@ void main() {
         throwsA(
           isA<ApiFailure>()
               .having((e) => e.kind, 'kind', ApiFailureKind.network)
-              .having(
-                (e) => e.safeMessage,
-                'safeMessage',
-                'GitHubとの通信に失敗しました。',
-              ),
+              .having((e) => e.reason, 'reason', isNull)
+              .having((e) => e.toString(), 'toString', 'ApiFailure(network)'),
         ),
       );
     } finally {
@@ -3001,9 +2995,9 @@ void main() {
               ApiFailureKind.rateLimited,
             )
             .having(
-              (e) => e.safeMessage,
-              'safeMessage',
-              contains('GitHubへの送信を一時停止'),
+              (failure) => failure.reason,
+              'reason',
+              ApiFailureReason.blockedBeforeSend,
             )
             .having((failure) => failure.retryAt, 'retryAt', retryAt),
       ),

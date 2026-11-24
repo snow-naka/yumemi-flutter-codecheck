@@ -10,18 +10,30 @@ enum ApiFailureKind {
   otherHttp,
 }
 
+// エラー種別だけでは表現できない具体的な原因。
+enum ApiFailureReason {
+  invalidSearchCondition,
+  invalidRepositoryKey,
+  issueCountUnverified,
+  repositoryMismatch,
+  blockedBeforeSend,
+  simulatedSearchFailure,
+  simulatedRepositoryNotFound,
+  simulatedDetailFailure,
+}
+
 class ApiFailure implements Exception {
   const ApiFailure({
     required this.kind,
-    required this.safeMessage,
+    this.reason,
     this.httpStatus,
     this.retryAt,
   });
 
   final ApiFailureKind kind;
 
-  // 利用者に表示して安全なメッセージ。
-  final String safeMessage;
+  // 具体的な原因が必要な場合のみ設定する。
+  final ApiFailureReason? reason;
 
   // HTTP応答が存在した場合のステータス。
   final int? httpStatus;
@@ -31,5 +43,7 @@ class ApiFailure implements Exception {
   final DateTime? retryAt;
 
   @override
-  String toString() => 'ApiFailure($kind): $safeMessage';
+  String toString() => reason == null
+      ? 'ApiFailure(${kind.name})'
+      : 'ApiFailure(${kind.name}, reason: ${reason!.name})';
 }

@@ -67,7 +67,7 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     if (normalized == 'error') {
       throw const ApiFailure(
         kind: ApiFailureKind.network,
-        safeMessage: '仮の検索失敗です。もう一度検索してください。',
+        reason: ApiFailureReason.simulatedSearchFailure,
       );
     }
     final incomplete = normalized == 'incomplete';
@@ -125,7 +125,7 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     if (matches.isEmpty) {
       throw const ApiFailure(
         kind: ApiFailureKind.notFoundOrUnavailable,
-        safeMessage: '対象の仮データを取得できませんでした。',
+        reason: ApiFailureReason.simulatedRepositoryNotFound,
         httpStatus: 404,
       );
     }
@@ -134,7 +134,7 @@ class FakeGitHubRepositoryGateway implements GitHubRepositoryGateway {
     if (key.id == 2 && attempts == 1) {
       throw const ApiFailure(
         kind: ApiFailureKind.network,
-        safeMessage: '仮の詳細取得失敗です。再試行してください。',
+        reason: ApiFailureReason.simulatedDetailFailure,
       );
     }
     return RepositoryDetail(
