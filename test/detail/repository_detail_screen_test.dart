@@ -18,7 +18,9 @@ import 'package:yumemi_app/models/api_failure.dart';
 import 'package:yumemi_app/models/repository_models.dart';
 import 'package:yumemi_app/providers.dart';
 import 'package:yumemi_app/l10n/app_localizations.dart';
+import 'package:yumemi_app/features/detail/issue_count_fetch_preferences.dart';
 
+import 'issue_count_fetch_mode_test_support.dart';
 import '../search/search_test_support.dart';
 
 void main() {
@@ -78,14 +80,26 @@ void main() {
   Future<ProviderContainer> start(
     WidgetTester tester, {
     Locale locale = const Locale('ja', 'JP'),
+    IssueCountFetchMode mode = IssueCountFetchMode.manual,
+    Future<void>? modeReadGate,
+    bool modeReadFails = false,
   }) async {
     tester.platformDispatcher.localesTestValue = [locale];
 
     addTearDown(tester.platformDispatcher.clearLocalesTestValue);
 
+    final modeStore = TestIssueCountFetchModeStore(
+      mode: mode,
+      readGate: modeReadGate,
+      failRead: modeReadFails,
+    );
+
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [githubRepositoryGatewayProvider.overrideWithValue(fake)],
+        overrides: [
+          githubRepositoryGatewayProvider.overrideWithValue(fake),
+          issueCountFetchModeStoreProvider.overrideWithValue(modeStore),
+        ],
         child: const MyApp(),
       ),
     );
@@ -156,6 +170,9 @@ void main() {
       ProviderScope(
         overrides: [
           githubRepositoryGatewayProvider.overrideWithValue(avatarFake),
+          issueCountFetchModeStoreProvider.overrideWithValue(
+            TestIssueCountFetchModeStore(),
+          ),
         ],
         child: MaterialApp(
           locale: const Locale('ja'),
@@ -1219,10 +1236,7 @@ void main() {
       find.byKey(const Key('open-issues-api-notice')),
     );
 
-    expect(
-      notice.data,
-      contains('one GitHub Search API request per operation'),
-    );
+    expect(notice.data, contains('uses the GitHub Search API'));
 
     expect(keys, [summary.key]);
     expect(issueKeys, [summary.key]);
@@ -1802,6 +1816,335 @@ void main() {
     expect(issueKeys, [summary.key]);
 
     expect(tester.takeException(), isNull);
+  });
+
+  Future<void> completeDetail(
+    WidgetTester tester,
+    ProviderContainer container,
+  ) async {
+    final searchState =
+        container.read(searchControllerProvider) as SearchResults;
+
+    requests.last.complete(
+      RepositoryDetail(summary: searchState.items.first, watcherCount: 8),
+    );
+
+    await tester.pump();
+    await tester.pump();
+  }
+
+  AppLocalizations detailL10n(WidgetTester tester) {
+    return AppLocalizations.of(
+      tester.element(find.byType(RepositoryDetailScreen)),
+    );
+  }
+
+  testWidgets('IA01: 詳細取得成功後にIssue数を自動取得する', (tester) async {
+    final container = await start(tester, mode: IssueCountFetchMode.automatic);
+
+    await open(tester);
+
+    expect(keys.length, 1);
+    expect(issueKeys, isEmpty);
+
+    await completeDetail(tester, container);
+
+    expect(issueKeys, [keys.single]);
+
+    // Issue取得中も詳細情報を表示する。
+    expect(find.text(detailL10n(tester).watcherCount(8)), findsOneWidget);
+
+    expect(find.text(detailL10n(tester).openIssuesLoading), findsOneWidget);
+
+    expect(tester.widget<OutlinedButton>(issueButtonFinder).onPressed, isNull);
+
+    expect(
+      tester.widget<OutlinedButton>(refreshButtonFinder).onPressed,
+      isNull,
+    );
+
+    issueRequests.single.complete(12);
+    await tester.pumpAndSettle();
+
+    expect(find.text(detailL10n(tester).openIssueCount(12)), findsOneWidget);
+
+    expect(issueKeys.length, 1);
+
+    expect(
+      container.read(openIssueCountCacheProvider).get(keys.single)?.count,
+      12,
+    );
+  });
+
+  testWidgets('IA02: 手動モードではIssue数を自動取得しない', (tester) async {
+    final container = await start(tester, mode: IssueCountFetchMode.manual);
+
+    await open(tester);
+    await completeDetail(tester, container);
+
+    expect(issueKeys, isEmpty);
+
+    expect(find.text(detailL10n(tester).openIssuesNotFetched), findsOneWidget);
+
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(issueKeys, [keys.single]);
+
+    issueRequests.single.complete(5);
+    await tester.pumpAndSettle();
+
+    expect(find.text(detailL10n(tester).openIssueCount(5)), findsOneWidget);
+  });
+
+  for (final mode in IssueCountFetchMode.values) {
+    final automatic = mode == IssueCountFetchMode.automatic;
+    final id = automatic ? 'IA03' : 'IA04';
+
+    testWidgets('$id: 設定読み込み完了まで自動取得を保留する (${mode.name})', (tester) async {
+      final gate = Completer<void>();
+
+      final container = await start(
+        tester,
+        mode: mode,
+        modeReadGate: gate.future,
+      );
+
+      await open(tester);
+      await completeDetail(tester, container);
+
+      // 詳細取得が先に完了してもIssue取得は始めない。
+      expect(issueKeys, isEmpty);
+
+      expect(find.text(detailL10n(tester).watcherCount(8)), findsOneWidget);
+
+      gate.complete();
+
+      await tester.pump();
+      await tester.pump();
+
+      if (automatic) {
+        expect(issueKeys, [keys.single]);
+
+        issueRequests.single.complete(6);
+        await tester.pumpAndSettle();
+
+        expect(find.text(detailL10n(tester).openIssueCount(6)), findsOneWidget);
+      } else {
+        await tester.pumpAndSettle();
+
+        expect(issueKeys, isEmpty);
+
+        expect(
+          find.text(detailL10n(tester).openIssuesNotFetched),
+          findsOneWidget,
+        );
+      }
+    });
+  }
+
+  testWidgets('IA05: 設定読み込み失敗時は自動取得しない', (tester) async {
+    final container = await start(
+      tester,
+      mode: IssueCountFetchMode.automatic,
+      modeReadFails: true,
+    );
+
+    await open(tester);
+    await completeDetail(tester, container);
+
+    expect(issueKeys, isEmpty);
+
+    // 手動取得は引き続き利用できる。
+    expect(
+      tester.widget<OutlinedButton>(issueButtonFinder).onPressed,
+      isNotNull,
+    );
+
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(issueKeys, [keys.single]);
+
+    issueRequests.single.complete(7);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('IA06: キャッシュがある場合は自動取得しない', (tester) async {
+    final container = await start(tester, mode: IssueCountFetchMode.automatic);
+
+    await open(tester);
+    await completeDetail(tester, container);
+
+    expect(issueKeys.length, 1);
+
+    issueRequests.single.complete(15);
+    await tester.pumpAndSettle();
+
+    await back(tester);
+    await open(tester);
+
+    // 詳細情報は開き直すたびに取得する。
+    expect(keys.length, 2);
+
+    await completeDetail(tester, container);
+
+    // Issue数は既存キャッシュを使用する。
+    expect(issueKeys.length, 1);
+
+    expect(find.text(detailL10n(tester).openIssueCount(15)), findsOneWidget);
+
+    expect(
+      tester.widget<OutlinedButton>(issueButtonFinder).onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('IA07: Issue取得失敗後の再描画で自動再試行しない', (tester) async {
+    final container = await start(tester, mode: IssueCountFetchMode.automatic);
+
+    await open(tester);
+    await completeDetail(tester, container);
+
+    expect(issueKeys.length, 1);
+
+    issueRequests.single.completeError(StateError('Test issue failure'));
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text(detailL10n(tester).unexpectedIssueError), findsOneWidget);
+
+    // 言語変更による再描画。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // テーマ変更による再描画。
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(issueKeys.length, 1);
+    expect(keys.length, 1);
+
+    expect(find.text(detailL10n(tester).unexpectedIssueError), findsOneWidget);
+
+    // 詳細情報は失わない。
+    expect(find.text(detailL10n(tester).watcherCount(8)), findsOneWidget);
+
+    // 利用者による再試行は許可する。
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(issueKeys.length, 2);
+
+    issueRequests.last.complete(9);
+    await tester.pumpAndSettle();
+
+    expect(find.text(detailL10n(tester).openIssueCount(9)), findsOneWidget);
+  });
+
+  testWidgets('IA08: 手動取得後は設定読み込みが完了しても重複取得しない', (tester) async {
+    final gate = Completer<void>();
+
+    final container = await start(
+      tester,
+      mode: IssueCountFetchMode.automatic,
+      modeReadGate: gate.future,
+    );
+
+    await open(tester);
+    await completeDetail(tester, container);
+
+    expect(issueKeys, isEmpty);
+
+    // 設定読み込み中に利用者が手動取得する。
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(issueKeys.length, 1);
+
+    // 手動取得が失敗した場合でも勝手に再取得しない。
+    issueRequests.single.completeError(StateError('Test issue failure'));
+
+    await tester.pump();
+
+    gate.complete();
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(issueKeys.length, 1);
+
+    expect(find.text(detailL10n(tester).unexpectedIssueError), findsOneWidget);
+
+    expect(
+      tester.widget<OutlinedButton>(issueButtonFinder).onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('IA09: 詳細取得の再試行成功後にIssue数を自動取得する', (tester) async {
+    final container = await start(tester, mode: IssueCountFetchMode.automatic);
+
+    await open(tester);
+
+    requests.single.completeError(StateError('Test detail failure'));
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(issueKeys, isEmpty);
+
+    final retry = find.byKey(const Key('retry-repository-detail'));
+
+    expect(retry, findsOneWidget);
+
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pump();
+
+    expect(keys.length, 2);
+    expect(issueKeys, isEmpty);
+
+    await completeDetail(tester, container);
+
+    expect(issueKeys, [keys.last]);
+
+    issueRequests.single.complete(10);
+    await tester.pumpAndSettle();
+
+    expect(find.text(detailL10n(tester).openIssueCount(10)), findsOneWidget);
+  });
+
+  testWidgets('IA10: 画面離脱後の自動取得結果をキャッシュしない', (tester) async {
+    final container = await start(tester, mode: IssueCountFetchMode.automatic);
+
+    await open(tester);
+    await completeDetail(tester, container);
+
+    expect(issueKeys.length, 1);
+
+    final key = keys.single;
+
+    // Issue取得が完了していない状態で画面を閉じる。
+    await back(tester);
+
+    issueRequests.single.complete(99);
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(container.read(openIssueCountCacheProvider).get(key), isNull);
   });
 }
 

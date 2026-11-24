@@ -474,7 +474,7 @@ abstract class AppLocalizations {
   /// No description provided for @openIssuesApiNotice.
   ///
   /// In en, this message translates to:
-  /// **'Fetching, fetching again, or retrying the open issue count uses one GitHub Search API request per operation and affects the API rate limit.'**
+  /// **'Automatically fetching, manually fetching, fetching again, or retrying the open issue count uses the GitHub Search API and affects its rate limit. Displaying cached counts does not require an additional request.'**
   String get openIssuesApiNotice;
 
   /// No description provided for @apiNetworkError.

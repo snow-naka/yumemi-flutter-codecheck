@@ -8,6 +8,9 @@ import '../../models/repository_models.dart';
 import 'repository_detail_provider.dart';
 import '../../providers.dart';
 import '../../l10n/localized_date_time.dart';
+import 'issue_count_fetch_mode_provider.dart';
+
+import 'dart:async';
 
 class RepositoryDetailScreen extends ConsumerWidget {
   const RepositoryDetailScreen({super.key, required this.summary});
@@ -19,6 +22,7 @@ class RepositoryDetailScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final provider = repositoryDetailProvider(summary.key);
     final state = ref.watch(provider);
+    final fetchMode = ref.watch(issueCountFetchModeProvider);
     final detail = state.isLoading ? null : state.asData?.value;
     final shownSummary = detail?.summary ?? summary;
 
@@ -28,6 +32,7 @@ class RepositoryDetailScreen extends ConsumerWidget {
         key: ValueKey(summary.key),
         repositoryKey: summary.key,
         requestKey: detail?.summary.key,
+        fetchMode: fetchMode,
         builder: (context, coreButton, issueControls) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -265,11 +270,13 @@ class _RepositoryDetailActions extends ConsumerStatefulWidget {
     super.key,
     required this.repositoryKey,
     required this.requestKey,
+    required this.fetchMode,
     required this.builder,
   });
 
   final RepositoryKey repositoryKey;
   final RepositoryKey? requestKey;
+  final AsyncValue<IssueCountFetchModeState> fetchMode;
   final _DetailActionsBuilder builder;
 
   @override
@@ -285,7 +292,8 @@ class _RepositoryDetailActionsState
   _IssueLoadProblem? _error;
   DateTime? _fetchedAt;
   int _requestGeneration = 0;
-
+  bool _automaticFetchPending = true;
+  bool _automaticFetchScheduled = false;
   @override
   void didUpdateWidget(covariant _RepositoryDetailActions oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -295,6 +303,59 @@ class _RepositoryDetailActionsState
       _loading = false;
       _error = null;
     }
+
+    _scheduleAutomaticFetch();
+  }
+
+  void _scheduleAutomaticFetch() {
+    if (!mounted ||
+        _routePopped ||
+        !_automaticFetchPending ||
+        _automaticFetchScheduled ||
+        widget.requestKey == null) {
+      return;
+    }
+
+    final mode = widget.fetchMode;
+
+    // 設定の読み込み・保存が完了するまで判定を保留する。
+    if (mode.isLoading || mode.asData?.value.isSaving == true) {
+      return;
+    }
+
+    _automaticFetchScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _automaticFetchScheduled = false;
+
+      if (!mounted || _routePopped || !_automaticFetchPending) {
+        return;
+      }
+
+      // 予約時点ではなく、実行直前の詳細取得状態を確認する。
+      if (!_canStartRequest) return;
+
+      // 予約後に設定が変更されている可能性があるため再確認する。
+      final latest = ref.read(issueCountFetchModeProvider);
+      final current = latest.asData?.value;
+
+      if (latest.isLoading || current?.isSaving == true) {
+        return;
+      }
+
+      // この詳細表示に対する自動取得の判定は一度だけ行う。
+      _automaticFetchPending = false;
+
+      // 手動取得・読み込み失敗時は自動通信しない。
+      if (current?.allowsAutomaticFetch != true) {
+        return;
+      }
+
+      // 取得済みのIssue数があればキャッシュを利用する。
+      if (_count != null) return;
+
+      unawaited(_load());
+    });
   }
 
   @override
@@ -308,6 +369,8 @@ class _RepositoryDetailActionsState
 
     _count = cached?.count;
     _fetchedAt = cached?.fetchedAt;
+
+    _scheduleAutomaticFetch();
   }
 
   // 再描画前の連続タップでも、現在の詳細取得状態で排他を判定する。
@@ -329,6 +392,10 @@ class _RepositoryDetailActionsState
     final target = widget.requestKey;
 
     if (target == null || !_canStartRequest) return;
+
+    // 手動取得が先に開始された場合も、
+    // 後から自動取得を重複実行しない。
+    _automaticFetchPending = false;
 
     final generation = ++_requestGeneration;
     setState(() {

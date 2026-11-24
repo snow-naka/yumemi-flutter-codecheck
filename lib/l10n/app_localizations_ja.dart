@@ -252,7 +252,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get openIssuesApiNotice =>
-      '※ Open Issue数の取得・再取得・再試行には、操作ごとにGitHub Search APIを1回使用します。APIのレート制限に影響します。';
+      '※ Open Issue数の自動取得・手動取得・再取得・再試行にはGitHub Search APIを使用し、APIのレート制限に影響します。キャッシュを表示する場合は追加取得しません。';
 
   @override
   String get apiNetworkError => 'GitHubとの通信に失敗しました。';

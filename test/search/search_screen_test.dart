@@ -11,7 +11,9 @@ import 'package:yumemi_app/providers.dart';
 import 'package:yumemi_app/features/search/viewed_repository_provider.dart';
 import 'package:yumemi_app/features/detail/repository_detail_screen.dart';
 import 'package:yumemi_app/features/search/search_layout_preferences.dart';
+import 'package:yumemi_app/features/detail/issue_count_fetch_preferences.dart';
 
+import '../detail/issue_count_fetch_mode_test_support.dart';
 import 'search_test_support.dart';
 
 final class _FakeSearchPanelPositionStore implements SearchPanelPositionStore {
@@ -66,7 +68,12 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [githubRepositoryGatewayProvider.overrideWithValue(fake)],
+        overrides: [
+          githubRepositoryGatewayProvider.overrideWithValue(fake),
+          issueCountFetchModeStoreProvider.overrideWithValue(
+            TestIssueCountFetchModeStore(),
+          ),
+        ],
         child: const MyApp(),
       ),
     );
@@ -91,6 +98,9 @@ void main() {
         overrides: [
           githubRepositoryGatewayProvider.overrideWithValue(fake),
           searchPanelPositionStoreProvider.overrideWithValue(layoutStore),
+          issueCountFetchModeStoreProvider.overrideWithValue(
+            TestIssueCountFetchModeStore(),
+          ),
         ],
         child: const MyApp(),
       ),

@@ -34,8 +34,7 @@
   "searchEmptyIncomplete": "表示できる結果がありません。検索結果が不完全な可能性があります。",
   "searchNoMatches": "一致するリポジトリは見つかりませんでした。",
   "searchEmptyPage": "このページには表示できるリポジトリがありません。",
-
-
+  "openIssuesApiNotice": "※ Open Issue数の自動取得・手動取得・再取得・再試行にはGitHub Search APIを使用し、APIのレート制限に影響します。キャッシュを表示する場合は追加取得しません。",
   "issueCountFetchMode": "Open Issue数の取得方式",
   "issueCountFetchModeAutomatic": "自動取得（詳細表示時）",
   "issueCountFetchModeManual": "手動取得（必要時）",
@@ -77,7 +76,6 @@
   "retryOpenIssuesSemantics": "Open Issue数の取得を再試行",
   "issueFetchedAt": "取得日時：{dateTime}（端末時刻）",
   "unexpectedIssueError": "Issue数の取得中に問題が発生しました。",
-  "openIssuesApiNotice": "※ Open Issue数の取得・再取得・再試行には、操作ごとにGitHub Search APIを1回使用します。APIのレート制限に影響します。",
 
   "apiNetworkError": "GitHubとの通信に失敗しました。",
   "apiTimeoutError": "通信がタイムアウトしました。",
