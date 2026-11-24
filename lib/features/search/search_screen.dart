@@ -27,11 +27,59 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   SearchPanelPosition _panelPosition = SearchPanelPosition.top;
   bool _positionChangedByUser = false;
   bool _savingPosition = false;
-
+  Size? _lastResultViewportSize;
   @override
   void initState() {
     super.initState();
     unawaited(_restorePosition());
+  }
+
+  Widget _submittedQueryPreview(String query) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Tooltip(
+        message: '検索語の全文を表示',
+        child: InkWell(
+          key: const Key('submitted-query-open'),
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => _showSubmittedQuery(query),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              '送信済みの検索語：$query',
+              key: const Key('submitted-query-label'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              softWrap: true,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSubmittedQuery(String query) {
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('送信済みの検索語'),
+          scrollable: true,
+          content: SelectableText(
+            query,
+            key: const Key('submitted-query-full'),
+          ),
+          actions: [
+            TextButton(
+              key: const Key('submitted-query-close'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('閉じる'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _restorePosition() async {
@@ -131,71 +179,189 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final busy =
         state is SearchLoading ||
         (state is SearchResults && state.loadMore is LoadMoreLoading);
+    final windowSize = MediaQuery.sizeOf(context);
+
+    // 横幅が十分あり、横長の場合は左右に分割する。
+    final sideBySide =
+        windowSize.width >= 600 && windowSize.width >= windowSize.height * 1.5;
+
+    final trailing = _panelPosition == SearchPanelPosition.bottom;
+
+    final media = MediaQuery.of(context);
+
+    final keyboardVisible = media.viewInsets.bottom > 0;
+
+    final availableHeight =
+        media.size.height - media.viewInsets.vertical - media.padding.vertical;
+
+    final textScale = media.textScaler.scale(14) / 14;
+
+    // 通常レイアウトに必要な高さの目安。
+    final minNormalHeight = 260.0 + 80.0 * textScale;
+
+    // 横画面でキーボードが表示され、高さが不足した場合。
+    final compactInput =
+        windowSize.width > windowSize.height &&
+        keyboardVisible &&
+        availableHeight < minNormalHeight;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Repository Search'),
-        actions: [
-          PopupMenuButton<SearchPanelPosition>(
-            key: const Key('search-layout-menu'),
-            tooltip: '検索欄の配置',
-            enabled: !_savingPosition,
-            icon: const Icon(Icons.tune),
-            onSelected: (position) {
-              unawaited(_changePosition(position));
-            },
-            itemBuilder: (_) => [
-              CheckedPopupMenuItem<SearchPanelPosition>(
-                value: SearchPanelPosition.top,
-                checked: _panelPosition == SearchPanelPosition.top,
-                child: const Text('上に配置（標準）'),
-              ),
-              CheckedPopupMenuItem<SearchPanelPosition>(
-                value: SearchPanelPosition.bottom,
-                checked: _panelPosition == SearchPanelPosition.bottom,
-                child: const Text('下に配置'),
-              ),
-            ],
-          ),
-          if (kDebugMode)
-            IconButton(
-              key: const Key('open-api-diagnostics'),
-              tooltip: 'API通信インスペクター',
-              icon: const Icon(Icons.bug_report_outlined),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const ApiDiagnosticsScreen(),
+      appBar: compactInput
+          ? null
+          : AppBar(
+              title: const Text('Repository Search'),
+              actions: [
+                PopupMenuButton<SearchPanelPosition>(
+                  key: const Key('search-layout-menu'),
+                  tooltip: '検索欄の配置',
+                  enabled: !_savingPosition,
+                  icon: const Icon(Icons.tune),
+                  onSelected: (position) {
+                    unawaited(_changePosition(position));
+                  },
+                  itemBuilder: (_) => [
+                    CheckedPopupMenuItem<SearchPanelPosition>(
+                      value: SearchPanelPosition.top,
+                      checked: _panelPosition == SearchPanelPosition.top,
+                      child: Text(sideBySide ? '左に配置（標準）' : '上に配置（標準）'),
+                    ),
+                    CheckedPopupMenuItem<SearchPanelPosition>(
+                      value: SearchPanelPosition.bottom,
+                      checked: _panelPosition == SearchPanelPosition.bottom,
+                      child: Text(sideBySide ? '右に配置' : '下に配置'),
+                    ),
+                  ],
+                ),
+                if (kDebugMode)
+                  IconButton(
+                    key: const Key('open-api-diagnostics'),
+                    tooltip: 'API通信インスペクター',
+                    icon: const Icon(Icons.bug_report_outlined),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const ApiDiagnosticsScreen(),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+              ],
             ),
-        ],
-      ),
 
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            verticalDirection: _panelPosition == SearchPanelPosition.bottom
-                ? VerticalDirection.up
-                : VerticalDirection.down,
+          padding: EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: compactInput ? 4 : 16,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // 非表示中も、直前の検索結果領域のサイズを維持する。
+              final keptResultSize =
+                  _lastResultViewportSize ?? const Size(480, 600);
 
-            children: [
-              _searchControls(state, busy),
+              return Flex(
+                key: const Key('search-main-layout'),
 
-              if (state.query != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    '送信済みの検索語：${state.query}',
-                    key: const Key('submitted-query-label'),
-                    style: Theme.of(context).textTheme.bodySmall,
+                direction: sideBySide ? Axis.horizontal : Axis.vertical,
+
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+
+                verticalDirection: trailing
+                    ? VerticalDirection.up
+                    : VerticalDirection.down,
+
+                textDirection: trailing ? TextDirection.rtl : TextDirection.ltr,
+
+                spacing: sideBySide && !compactInput ? 12 : 0,
+
+                children: [
+                  // 検索操作エリア
+                  Flexible(
+                    flex: compactInput
+                        ? 1
+                        : sideBySide
+                        ? 2
+                        : 0,
+                    fit: FlexFit.tight,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: compactInput || sideBySide
+                            ? constraints.maxHeight
+                            : constraints.maxHeight * 0.55,
+                      ),
+                      child: SingleChildScrollView(
+                        key: const Key('search-controls-panel'),
+                        primary: false,
+                        reverse: !compactInput && !sideBySide && trailing,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          verticalDirection: trailing
+                              ? VerticalDirection.up
+                              : VerticalDirection.down,
+                          children: [
+                            _searchControls(state, busy),
+
+                            if (!compactInput && state.query != null)
+                              _submittedQueryPreview(state.query!),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
 
-              Expanded(child: _content(state, viewedKeys)),
-            ],
+                  // 検索結果エリア
+                  Flexible(
+                    flex: compactInput
+                        ? 0
+                        : sideBySide
+                        ? 3
+                        : 1,
+                    fit: FlexFit.tight,
+                    child: ExcludeFocus(
+                      excluding: compactInput,
+                      child: TickerMode(
+                        enabled: !compactInput,
+                        child: Offstage(
+                          offstage: compactInput,
+                          child: SizedBox(
+                            width: compactInput ? 0 : null,
+                            height: compactInput ? 0 : null,
+                            child: OverflowBox(
+                              alignment: Alignment.topLeft,
+                              minWidth: compactInput
+                                  ? keptResultSize.width
+                                  : null,
+                              maxWidth: compactInput
+                                  ? keptResultSize.width
+                                  : null,
+                              minHeight: compactInput
+                                  ? keptResultSize.height
+                                  : null,
+                              maxHeight: compactInput
+                                  ? keptResultSize.height
+                                  : null,
+                              child: LayoutBuilder(
+                                builder: (context, resultConstraints) {
+                                  if (!compactInput &&
+                                      resultConstraints.hasBoundedWidth &&
+                                      resultConstraints.hasBoundedHeight) {
+                                    _lastResultViewportSize =
+                                        resultConstraints.biggest;
+                                  }
+
+                                  return _content(state, viewedKeys);
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
