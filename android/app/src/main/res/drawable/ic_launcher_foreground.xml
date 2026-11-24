@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="40"
+        android:pivotY="38"
+        android:scaleX="0.82"
+        android:scaleY="0.82"
+        android:translateX="14"
+        android:translateY="16">
+
+        <!-- リポジトリの外形 -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M18,12 H42 Q47,12 47,17 V53 Q47,58 42,58 H18 Q13,58 13,53 V17 Q13,12 18,12 Z" />
+
+        <!-- リポジトリの内側の線 -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineCap="round"
+            android:pathData="M22,12 V58 M13,49 H32" />
+
+        <!-- 虫眼鏡のレンズ -->
+        <path
+            android:fillColor="@color/repo_search_icon_background"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4"
+            android:pathData="M48,32 A13,13 0,0 1,48 58 A13,13 0,0 1,48 32 Z" />
+
+        <!-- 虫眼鏡の持ち手 -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineCap="round"
+            android:pathData="M57,54 L67,64" />
+
+    </group>
+</vector>
