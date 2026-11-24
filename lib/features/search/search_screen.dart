@@ -14,6 +14,7 @@ import 'search_controller.dart';
 import 'search_state.dart';
 import 'viewed_repository_provider.dart';
 import 'search_layout_preferences.dart';
+import '../detail/issue_count_fetch_mode_menu.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -246,6 +247,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ),
                   ],
                 ),
+                const IssueCountFetchModeMenu(),
                 if (kDebugMode)
                   IconButton(
                     key: const Key('open-api-diagnostics'),

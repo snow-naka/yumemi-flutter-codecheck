@@ -106,6 +106,27 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchEmptyPage => 'このページには表示できるリポジトリがありません。';
 
   @override
+  String get issueCountFetchMode => 'Open Issue数の取得方式';
+
+  @override
+  String get issueCountFetchModeAutomatic => '自動取得（詳細表示時）';
+
+  @override
+  String get issueCountFetchModeManual => '手動取得（必要時）';
+
+  @override
+  String get issueCountFetchModeLoading => '取得方式を読み込み中';
+
+  @override
+  String get issueCountFetchModeSaving => '取得方式を保存中';
+
+  @override
+  String get issueCountFetchModeReadFailed => '取得方式を読み込めなかったため、手動取得にしています。';
+
+  @override
+  String get issueCountFetchModeSaveFailed => 'Issue数の取得方式を保存できませんでした。';
+
+  @override
   String get languageUnspecified => '未指定';
 
   @override

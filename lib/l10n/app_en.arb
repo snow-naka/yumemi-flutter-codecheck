@@ -68,6 +68,13 @@
   "searchEmptyIncomplete": "No results to display. Search results may be incomplete.",
   "searchNoMatches": "No matching repositories were found.",
   "searchEmptyPage": "There are no repositories to display on this page.",
+  "issueCountFetchMode": "Open issue count fetch mode",
+  "issueCountFetchModeAutomatic": "Automatic (on opening details)",
+  "issueCountFetchModeManual": "Manual (on demand)",
+  "issueCountFetchModeLoading": "Loading fetch mode",
+  "issueCountFetchModeSaving": "Saving fetch mode",
+  "issueCountFetchModeReadFailed": "Could not load the fetch mode. Manual fetching is used.",
+  "issueCountFetchModeSaveFailed": "Could not save the issue count fetch mode.",
 
   "languageUnspecified": "Not specified",
   "viewed": "Viewed",

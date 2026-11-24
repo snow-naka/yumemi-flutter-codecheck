@@ -109,6 +109,29 @@ class AppLocalizationsEn extends AppLocalizations {
       'There are no repositories to display on this page.';
 
   @override
+  String get issueCountFetchMode => 'Open issue count fetch mode';
+
+  @override
+  String get issueCountFetchModeAutomatic => 'Automatic (on opening details)';
+
+  @override
+  String get issueCountFetchModeManual => 'Manual (on demand)';
+
+  @override
+  String get issueCountFetchModeLoading => 'Loading fetch mode';
+
+  @override
+  String get issueCountFetchModeSaving => 'Saving fetch mode';
+
+  @override
+  String get issueCountFetchModeReadFailed =>
+      'Could not load the fetch mode. Manual fetching is used.';
+
+  @override
+  String get issueCountFetchModeSaveFailed =>
+      'Could not save the issue count fetch mode.';
+
+  @override
   String get languageUnspecified => 'Not specified';
 
   @override
