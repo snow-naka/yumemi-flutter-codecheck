@@ -1,7 +1,82 @@
+
 {
   "@@locale": "en",
+
   "appTitle": "Repository Search",
   "@appTitle": {
     "description": "Application title"
-  }
+  },
+
+  "search": "Search",
+  "cancel": "Cancel",
+  "retry": "Retry",
+  "close": "Close",
+
+  "keyword": "Keyword",
+  "keywordRequired": "Please enter a search keyword.",
+  "searchPrompt": "Enter a keyword to search.",
+  "searching": "Searching…",
+
+  "showFullSearchQuery": "Show the full search query",
+  "submittedQueryTitle": "Submitted search query",
+  "submittedQueryLabel": "Submitted query: {query}",
+  "@submittedQueryLabel": {
+    "description": "The query used for the current search",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+
+  "searchPanelPosition": "Search field position",
+  "searchPanelTopDefault": "Top (default)",
+  "searchPanelBottom": "Bottom",
+  "searchPanelLeftDefault": "Left (default)",
+  "searchPanelRight": "Right",
+  "searchPanelSaveFailed": "Could not save the search field position.",
+
+  "apiDiagnosticsTitle": "API Request Inspector",
+
+  "searchResultCount": "Showing {displayedCount} / Initial total: {totalCount}",
+  "@searchResultCount": {
+    "description": "Displayed result count and initial total result count",
+    "placeholders": {
+      "displayedCount": {
+        "type": "int",
+        "format": "decimalPattern"
+      },
+      "totalCount": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+
+  "searchEmptyCount": "Showing: 0 (Total: {totalCount})",
+  "@searchEmptyCount": {
+    "description": "Result count when there are no displayable results",
+    "placeholders": {
+      "totalCount": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+
+  "incompleteResultsWarning": "Search results may be incomplete.",
+  "searchEmptyIncomplete": "No results to display. Search results may be incomplete.",
+  "searchNoMatches": "No matching repositories were found.",
+  "searchEmptyPage": "There are no repositories to display on this page.",
+
+  "languageUnspecified": "Not specified",
+  "viewed": "Viewed",
+
+  "loadMore": "Load more",
+  "loadingMore": "Loading more…",
+  "retryLoadMore": "Retry loading more",
+  "githubSearchLimitReached": "The GitHub Search API retrieval limit (1,000 results) has been reached.",
+  "noMoreResults": "No more results.",
+
+  "unexpectedSearchError": "An unexpected error occurred during the search."
 }

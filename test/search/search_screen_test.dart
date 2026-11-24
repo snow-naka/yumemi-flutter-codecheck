@@ -56,12 +56,21 @@ void main() {
     );
   });
 
-  Future<void> start(WidgetTester tester) => tester.pumpWidget(
-    ProviderScope(
-      overrides: [githubRepositoryGatewayProvider.overrideWithValue(fake)],
-      child: const MyApp(),
-    ),
-  );
+  Future<void> start(
+    WidgetTester tester, {
+    Locale locale = const Locale('ja', 'JP'),
+  }) async {
+    tester.platformDispatcher.localesTestValue = [locale];
+
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [githubRepositoryGatewayProvider.overrideWithValue(fake)],
+        child: const MyApp(),
+      ),
+    );
+  }
 
   Future<void> search(WidgetTester tester, String query) async {
     await tester.enterText(input, query);
@@ -69,7 +78,14 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> startWithLayout(WidgetTester tester) async {
+  Future<void> startWithLayout(
+    WidgetTester tester, {
+    Locale locale = const Locale('ja', 'JP'),
+  }) async {
+    tester.platformDispatcher.localesTestValue = [locale];
+
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -1289,4 +1305,151 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('LS01: 英語環境で検索画面を操作できる', (tester) async {
+    await startWithLayout(tester, locale: const Locale('en', 'US'));
+
+    expect(find.text('Repository Search'), findsOneWidget);
+    expect(find.text('Keyword'), findsOneWidget);
+    expect(find.text('Enter a keyword to search.'), findsOneWidget);
+
+    // 空入力時のエラーも英語で表示する。
+    await search(tester, '  ');
+
+    expect(find.text('Please enter a search keyword.'), findsOneWidget);
+    expect(queries, isEmpty);
+
+    // 正常な検索。
+    await search(tester, 'flutter');
+
+    expect(find.text('Searching…'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Submitted query: flutter'), findsOneWidget);
+
+    final page = resultPage(count: 2);
+    requests.single.complete(page);
+    await tester.pumpAndSettle();
+
+    expect(find.text('repository-0'), findsOneWidget);
+    expect(find.text('test/repository-1 / Not specified'), findsOneWidget);
+
+    expect(
+      find.text('Showing 2 / Initial total: ${page.totalCount}'),
+      findsOneWidget,
+    );
+
+    // 送信済み検索語の全文表示。
+    await tester.tap(find.byKey(const Key('submitted-query-open')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Submitted search query'), findsOneWidget);
+
+    final fullText = tester.widget<SelectableText>(
+      find.byKey(const Key('submitted-query-full')),
+    );
+
+    expect(fullText.data, 'flutter');
+    expect(find.text('Close'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('submitted-query-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('repository-0'), findsOneWidget);
+    expect(queries, ['flutter']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LS02: 未対応言語では検索画面を英語で表示する', (tester) async {
+    await startWithLayout(tester, locale: const Locale('fr', 'FR'));
+
+    expect(find.text('Repository Search'), findsOneWidget);
+    expect(find.text('Keyword'), findsOneWidget);
+    expect(find.text('Enter a keyword to search.'), findsOneWidget);
+
+    final context = tester.element(input);
+
+    expect(Localizations.localeOf(context), const Locale('en'));
+
+    expect(queries, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LS03: 言語変更時も検索状態と入力内容を維持する', (tester) async {
+    await startWithLayout(tester);
+
+    await search(tester, 'flutter');
+    requests.single.complete(resultPage(count: 30));
+    await tester.pumpAndSettle();
+
+    expect(find.text('リポジトリ検索'), findsOneWidget);
+    expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+
+    // 未送信の入力を保持する。
+    await tester.enterText(input, 'draft');
+    tester.testTextInput.hide();
+    await tester.pumpAndSettle();
+
+    final list = find.byType(ListView);
+    final controller = tester.widget<ListView>(list).controller!;
+
+    controller.jumpTo(200);
+    await tester.pumpAndSettle();
+
+    final originalOffset = controller.offset;
+
+    expect(controller.offset, greaterThan(0));
+
+    // 日本語から英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Repository Search'), findsOneWidget);
+    expect(find.text('Submitted query: flutter'), findsOneWidget);
+    expect(find.text('リポジトリ検索'), findsNothing);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+    expect(tester.widget<ListView>(list).controller, same(controller));
+    expect(controller.offset, closeTo(originalOffset, 0.01));
+
+    // 日本語に戻す。
+    tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('リポジトリ検索'), findsOneWidget);
+    expect(find.text('送信済みの検索語：flutter'), findsOneWidget);
+
+    expect(tester.widget<TextFormField>(input).controller!.text, 'draft');
+
+    expect(tester.widget<ListView>(list).controller, same(controller));
+    expect(controller.offset, closeTo(originalOffset, 0.01));
+
+    // 言語変更だけでは通信や設定保存を行わない。
+    expect(queries, ['flutter']);
+    expect(layoutStore.writes, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LS04: 言語変更時に表示済みの入力エラーも翻訳する', (tester) async {
+    await startWithLayout(tester);
+
+    await search(tester, '  ');
+
+    expect(find.text('検索キーワードを入力してください。'), findsOneWidget);
+
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keyword'), findsOneWidget);
+
+    expect(find.text('Please enter a search keyword.'), findsOneWidget);
+
+    expect(find.text('検索キーワードを入力してください。'), findsNothing);
+
+    expect(queries, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
 }

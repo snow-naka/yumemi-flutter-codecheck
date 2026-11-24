@@ -8,6 +8,9 @@ void main() {
   testWidgets('App starts with a ProviderScope and a minimal Material view', (
     tester,
   ) async {
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     app.main();
     await tester.pump();
 

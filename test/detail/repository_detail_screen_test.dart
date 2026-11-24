@@ -110,7 +110,7 @@ void main() {
       tester.element(find.byType(RepositoryDetailScreen)),
     )!;
     final animation = route.animation!;
-    await tester.pageBack();
+    await tester.tap(find.byType(BackButton));
     for (
       var frame = 0;
       animation.status != AnimationStatus.dismissed && frame < 200;
@@ -219,6 +219,9 @@ void main() {
   testWidgets(
     'return preserves submitted query, draft, results and exact scroll offset',
     (tester) async {
+      tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
+
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
       final container = await start(tester);
       await tester.scrollUntilVisible(
         find.text('repository-12'),
@@ -352,6 +355,9 @@ void main() {
   testWidgets(
     'default Fake detail retries explicitly and displays zero and null values',
     (tester) async {
+      tester.platformDispatcher.localesTestValue = [const Locale('ja', 'JP')];
+
+      addTearDown(tester.platformDispatcher.clearLocalesTestValue);
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -603,7 +609,7 @@ void main() {
     expect(sentPaths, ['/search/repositories']);
 
     // 4. 詳細画面から戻る。
-    await tester.pageBack();
+    await tester.tap(find.byType(BackButton));
     await tester.pump(const Duration(milliseconds: 16));
 
     // 退場アニメーション中なのでWidgetはまだ存在する。

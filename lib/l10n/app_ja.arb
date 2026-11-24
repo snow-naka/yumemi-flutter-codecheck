@@ -1,4 +1,48 @@
+
 {
   "@@locale": "ja",
-  "appTitle": "リポジトリ検索"
+
+  "appTitle": "リポジトリ検索",
+
+  "search": "検索",
+  "cancel": "キャンセル",
+  "retry": "再試行",
+  "close": "閉じる",
+
+  "keyword": "キーワード",
+  "keywordRequired": "検索キーワードを入力してください。",
+  "searchPrompt": "キーワードを入力して検索してください。",
+  "searching": "検索中…",
+
+  "showFullSearchQuery": "検索語の全文を表示",
+  "submittedQueryTitle": "送信済みの検索語",
+  "submittedQueryLabel": "送信済みの検索語：{query}",
+
+  "searchPanelPosition": "検索欄の配置",
+  "searchPanelTopDefault": "上に配置（標準）",
+  "searchPanelBottom": "下に配置",
+  "searchPanelLeftDefault": "左に配置（標準）",
+  "searchPanelRight": "右に配置",
+  "searchPanelSaveFailed": "検索欄の配置を保存できませんでした。",
+
+  "apiDiagnosticsTitle": "API通信インスペクター",
+
+  "searchResultCount": "{displayedCount}件表示 / 初回総件数 {totalCount}件",
+  "searchEmptyCount": "表示中：0件（総件数：{totalCount}件）",
+
+  "incompleteResultsWarning": "検索結果が不完全な可能性があります。",
+  "searchEmptyIncomplete": "表示できる結果がありません。検索結果が不完全な可能性があります。",
+  "searchNoMatches": "一致するリポジトリは見つかりませんでした。",
+  "searchEmptyPage": "このページには表示できるリポジトリがありません。",
+
+  "languageUnspecified": "未指定",
+  "viewed": "閲覧済み",
+
+  "loadMore": "もっと読み込む",
+  "loadingMore": "追加読み込み中…",
+  "retryLoadMore": "追加読み込みを再試行",
+  "githubSearchLimitReached": "GitHub検索APIの取得上限（1,000件）に達しました。",
+  "noMoreResults": "これ以上の結果はありません。",
+
+  "unexpectedSearchError": "検索処理中に問題が発生しました。"
 }

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:yumemi_app/devtools/api_diagnostics.dart';
 import 'package:yumemi_app/features/search/search_screen.dart';
 import 'package:yumemi_app/providers.dart';
+import 'package:yumemi_app/l10n/app_localizations.dart';
 
 void main() {
   testWidgets('DI03: 検索画面から診断画面を開き履歴を維持', (tester) async {
@@ -24,7 +25,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [apiDiagnosticsProvider.overrideWithValue(store)],
-        child: const MaterialApp(home: SearchScreen()),
+        child: const MaterialApp(
+          locale: Locale('ja'),
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: SearchScreen(),
+        ),
       ),
     );
 
@@ -40,10 +49,12 @@ void main() {
     expect(find.text('検索 / HTTP 200'), findsOneWidget);
 
     // 検索画面に戻る。
-    await tester.pageBack();
+    final backButton = find.byType(BackButton);
+    expect(backButton, findsOneWidget);
+    await tester.tap(backButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('Repository Search'), findsOneWidget);
+    expect(find.text('リポジトリ検索'), findsOneWidget);
 
     // 再び開いても履歴が残る。
     await tester.tap(button);

@@ -104,6 +104,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Repository Search'**
   String get appTitle;
+
+  /// No description provided for @search.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get search;
+
+  /// No description provided for @cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancel;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// No description provided for @close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get close;
+
+  /// No description provided for @keyword.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyword'**
+  String get keyword;
+
+  /// No description provided for @keywordRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a search keyword.'**
+  String get keywordRequired;
+
+  /// No description provided for @searchPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a keyword to search.'**
+  String get searchPrompt;
+
+  /// No description provided for @searching.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching…'**
+  String get searching;
+
+  /// No description provided for @showFullSearchQuery.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the full search query'**
+  String get showFullSearchQuery;
+
+  /// No description provided for @submittedQueryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted search query'**
+  String get submittedQueryTitle;
+
+  /// The query used for the current search
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted query: {query}'**
+  String submittedQueryLabel(String query);
+
+  /// No description provided for @searchPanelPosition.
+  ///
+  /// In en, this message translates to:
+  /// **'Search field position'**
+  String get searchPanelPosition;
+
+  /// No description provided for @searchPanelTopDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Top (default)'**
+  String get searchPanelTopDefault;
+
+  /// No description provided for @searchPanelBottom.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom'**
+  String get searchPanelBottom;
+
+  /// No description provided for @searchPanelLeftDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Left (default)'**
+  String get searchPanelLeftDefault;
+
+  /// No description provided for @searchPanelRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Right'**
+  String get searchPanelRight;
+
+  /// No description provided for @searchPanelSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the search field position.'**
+  String get searchPanelSaveFailed;
+
+  /// No description provided for @apiDiagnosticsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'API Request Inspector'**
+  String get apiDiagnosticsTitle;
+
+  /// Displayed result count and initial total result count
+  ///
+  /// In en, this message translates to:
+  /// **'Showing {displayedCount} / Initial total: {totalCount}'**
+  String searchResultCount(int displayedCount, int totalCount);
+
+  /// Result count when there are no displayable results
+  ///
+  /// In en, this message translates to:
+  /// **'Showing: 0 (Total: {totalCount})'**
+  String searchEmptyCount(int totalCount);
+
+  /// No description provided for @incompleteResultsWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Search results may be incomplete.'**
+  String get incompleteResultsWarning;
+
+  /// No description provided for @searchEmptyIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'No results to display. Search results may be incomplete.'**
+  String get searchEmptyIncomplete;
+
+  /// No description provided for @searchNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching repositories were found.'**
+  String get searchNoMatches;
+
+  /// No description provided for @searchEmptyPage.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no repositories to display on this page.'**
+  String get searchEmptyPage;
+
+  /// No description provided for @languageUnspecified.
+  ///
+  /// In en, this message translates to:
+  /// **'Not specified'**
+  String get languageUnspecified;
+
+  /// No description provided for @viewed.
+  ///
+  /// In en, this message translates to:
+  /// **'Viewed'**
+  String get viewed;
+
+  /// No description provided for @loadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get loadMore;
+
+  /// No description provided for @loadingMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading more…'**
+  String get loadingMore;
+
+  /// No description provided for @retryLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry loading more'**
+  String get retryLoadMore;
+
+  /// No description provided for @githubSearchLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'The GitHub Search API retrieval limit (1,000 results) has been reached.'**
+  String get githubSearchLimitReached;
+
+  /// No description provided for @noMoreResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No more results.'**
+  String get noMoreResults;
+
+  /// No description provided for @unexpectedSearchError.
+  ///
+  /// In en, this message translates to:
+  /// **'An unexpected error occurred during the search.'**
+  String get unexpectedSearchError;
 }
 
 class _AppLocalizationsDelegate
