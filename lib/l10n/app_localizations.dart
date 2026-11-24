@@ -258,7 +258,7 @@ abstract class AppLocalizations {
   /// No description provided for @issueCountFetchModeAutomatic.
   ///
   /// In en, this message translates to:
-  /// **'Automatic (on opening details)'**
+  /// **'Automatic (open or refresh)'**
   String get issueCountFetchModeAutomatic;
 
   /// No description provided for @issueCountFetchModeManual.
@@ -474,7 +474,7 @@ abstract class AppLocalizations {
   /// No description provided for @openIssuesApiNotice.
   ///
   /// In en, this message translates to:
-  /// **'Automatically fetching, manually fetching, fetching again, or retrying the open issue count uses the GitHub Search API and affects its rate limit. Displaying cached counts does not require an additional request.'**
+  /// **'Fetching the open issue count uses the GitHub Search API and affects its rate limit. Cached counts are reused when reopening details. Automatic mode also refreshes the count when details are refreshed.'**
   String get openIssuesApiNotice;
 
   /// No description provided for @apiNetworkError.

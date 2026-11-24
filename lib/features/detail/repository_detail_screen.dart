@@ -284,6 +284,8 @@ class _RepositoryDetailActions extends ConsumerStatefulWidget {
       _RepositoryDetailActionsState();
 }
 
+enum _AutomaticIssueFetch { onOpen, afterRefresh }
+
 class _RepositoryDetailActionsState
     extends ConsumerState<_RepositoryDetailActions> {
   bool _loading = false;
@@ -292,8 +294,10 @@ class _RepositoryDetailActionsState
   _IssueLoadProblem? _error;
   DateTime? _fetchedAt;
   int _requestGeneration = 0;
-  bool _automaticFetchPending = true;
+  _AutomaticIssueFetch? _pendingAutomaticFetch = _AutomaticIssueFetch.onOpen;
+
   bool _automaticFetchScheduled = false;
+
   @override
   void didUpdateWidget(covariant _RepositoryDetailActions oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -310,7 +314,7 @@ class _RepositoryDetailActionsState
   void _scheduleAutomaticFetch() {
     if (!mounted ||
         _routePopped ||
-        !_automaticFetchPending ||
+        _pendingAutomaticFetch == null ||
         _automaticFetchScheduled ||
         widget.requestKey == null) {
       return;
@@ -328,14 +332,15 @@ class _RepositoryDetailActionsState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _automaticFetchScheduled = false;
 
-      if (!mounted || _routePopped || !_automaticFetchPending) {
-        return;
-      }
+      if (!mounted || _routePopped) return;
 
-      // 予約時点ではなく、実行直前の詳細取得状態を確認する。
+      final pending = _pendingAutomaticFetch;
+
+      if (pending == null) return;
+
+      // 詳細の取得状態と排他制御を実行直前に確認する。
       if (!_canStartRequest) return;
 
-      // 予約後に設定が変更されている可能性があるため再確認する。
       final latest = ref.read(issueCountFetchModeProvider);
       final current = latest.asData?.value;
 
@@ -343,16 +348,19 @@ class _RepositoryDetailActionsState
         return;
       }
 
-      // この詳細表示に対する自動取得の判定は一度だけ行う。
-      _automaticFetchPending = false;
+      // 1回の詳細表示・更新につき、開始判定は一度だけ行う。
+      _pendingAutomaticFetch = null;
 
-      // 手動取得・読み込み失敗時は自動通信しない。
+      // 手動モード・設定読み込み失敗時は自動通信しない。
       if (current?.allowsAutomaticFetch != true) {
         return;
       }
 
-      // 取得済みのIssue数があればキャッシュを利用する。
-      if (_count != null) return;
+      // 詳細画面を開いた場合は既存キャッシュを利用する。
+      // 明示的な詳細更新の場合はキャッシュがあっても再取得する。
+      if (pending == _AutomaticIssueFetch.onOpen && _count != null) {
+        return;
+      }
 
       unawaited(_load());
     });
@@ -385,6 +393,9 @@ class _RepositoryDetailActionsState
 
   void _refreshDetail() {
     if (!_canStartRequest) return;
+
+    _pendingAutomaticFetch = _AutomaticIssueFetch.afterRefresh;
+
     ref.invalidate(repositoryDetailProvider(widget.repositoryKey));
   }
 
@@ -395,7 +406,7 @@ class _RepositoryDetailActionsState
 
     // 手動取得が先に開始された場合も、
     // 後から自動取得を重複実行しない。
-    _automaticFetchPending = false;
+    _pendingAutomaticFetch = null;
 
     final generation = ++_requestGeneration;
     setState(() {

@@ -109,7 +109,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get issueCountFetchMode => 'Open Issue数の取得方式';
 
   @override
-  String get issueCountFetchModeAutomatic => '自動取得（詳細表示時）';
+  String get issueCountFetchModeAutomatic => '自動取得（詳細表示・更新時）';
 
   @override
   String get issueCountFetchModeManual => '手動取得（必要時）';
@@ -252,7 +252,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get openIssuesApiNotice =>
-      '※ Open Issue数の自動取得・手動取得・再取得・再試行にはGitHub Search APIを使用し、APIのレート制限に影響します。キャッシュを表示する場合は追加取得しません。';
+      '※ Open Issue数の取得にはGitHub Search APIを使用し、APIのレート制限に影響します。詳細を開き直すときは取得済みのIssue数を再利用します。自動取得モードでは詳細更新時にもIssue数を再取得します。';
 
   @override
   String get apiNetworkError => 'GitHubとの通信に失敗しました。';

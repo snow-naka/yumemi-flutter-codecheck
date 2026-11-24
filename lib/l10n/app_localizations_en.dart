@@ -112,7 +112,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get issueCountFetchMode => 'Open issue count fetch mode';
 
   @override
-  String get issueCountFetchModeAutomatic => 'Automatic (on opening details)';
+  String get issueCountFetchModeAutomatic => 'Automatic (open or refresh)';
 
   @override
   String get issueCountFetchModeManual => 'Manual (on demand)';
@@ -261,7 +261,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get openIssuesApiNotice =>
-      'Automatically fetching, manually fetching, fetching again, or retrying the open issue count uses the GitHub Search API and affects its rate limit. Displaying cached counts does not require an additional request.';
+      'Fetching the open issue count uses the GitHub Search API and affects its rate limit. Cached counts are reused when reopening details. Automatic mode also refreshes the count when details are refreshed.';
 
   @override
   String get apiNetworkError => 'Failed to communicate with GitHub.';

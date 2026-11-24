@@ -300,7 +300,7 @@ void main() {
 
     expect(find.text('Open issue count fetch mode'), findsOneWidget);
 
-    expect(find.text('Automatic (on opening details)'), findsOneWidget);
+    expect(find.text('Automatic (open or refresh)'), findsOneWidget);
 
     expect(find.text('Manual (on demand)'), findsOneWidget);
 
