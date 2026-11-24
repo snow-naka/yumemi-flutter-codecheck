@@ -58,6 +58,22 @@ void main() {
     );
   });
 
+  void expectAccessibleButton(
+    WidgetTester tester,
+    Finder button, {
+    required String visibleText,
+    required String semanticLabel,
+  }) {
+    expect(button, findsOneWidget);
+
+    expect(
+      find.descendant(of: button, matching: find.text(visibleText)),
+      findsOneWidget,
+    );
+
+    expect(tester.getSemantics(button).label, semanticLabel);
+  }
+
   Future<ProviderContainer> start(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -953,6 +969,157 @@ void main() {
       greaterThan(tester.getTopRight(info).dx),
     );
   });
+
+  testWidgets('AX01: 詳細更新とIssue取得の表示・読み上げ名', (tester) async {
+    final container = await start(tester);
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    await open(tester);
+
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 8),
+    );
+    await tester.pump();
+
+    final coreButton = find.byKey(const Key('refresh-repository-detail'));
+    final issueButton = find.byKey(const Key('load-open-issues'));
+
+    expectAccessibleButton(
+      tester,
+      coreButton,
+      visibleText: '更新',
+      semanticLabel: 'リポジトリ詳細情報を更新',
+    );
+
+    expectAccessibleButton(
+      tester,
+      issueButton,
+      visibleText: '取得',
+      semanticLabel: 'Open Issue数を取得',
+    );
+
+    // Issue数取得に成功した後は「再取得」に変わる。
+    await tester.tap(issueButton);
+    await tester.pump();
+
+    issueRequests.single.complete(12);
+    await tester.pump();
+
+    expectAccessibleButton(
+      tester,
+      issueButton,
+      visibleText: '再取得',
+      semanticLabel: 'Open Issue数を再取得',
+    );
+  });
+
+  testWidgets('AX02: Issue取得失敗時の再試行の表示・読み上げ名', (tester) async {
+    final container = await start(tester);
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    await open(tester);
+
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 8),
+    );
+    await tester.pump();
+
+    final issueButton = find.byKey(const Key('load-open-issues'));
+
+    await tester.tap(issueButton);
+    await tester.pump();
+
+    issueRequests.single.completeError(
+      const ApiFailure(kind: ApiFailureKind.network, safeMessage: 'テスト用の取得失敗'),
+    );
+    await tester.pump();
+
+    expectAccessibleButton(
+      tester,
+      issueButton,
+      visibleText: '再試行',
+      semanticLabel: 'Open Issue数の取得を再試行',
+    );
+  });
+
+  testWidgets('AX03: 詳細取得失敗時の再試行の表示・読み上げ名', (tester) async {
+    await start(tester);
+    await open(tester);
+
+    requests.single.completeError(
+      const ApiFailure(
+        kind: ApiFailureKind.network,
+        safeMessage: 'テスト用の詳細取得失敗',
+      ),
+    );
+    await tester.pump();
+
+    expectAccessibleButton(
+      tester,
+      find.byKey(const Key('retry-repository-detail')),
+      visibleText: '再試行',
+      semanticLabel: 'リポジトリ詳細情報の取得を再試行',
+    );
+  });
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('BW01: 横画面で操作ボタンが必要以上に広がらない'
+        ' (scale=$scale)', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 390));
+
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+
+      addTearDown(() async {
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+        await tester.binding.setSurfaceSize(null);
+      });
+
+      final container = await start(tester);
+
+      final summary = (container.read(
+        searchControllerProvider,
+      ) as SearchResults).items.first;
+
+      await open(tester);
+
+      requests.single.complete(
+        RepositoryDetail(summary: summary, watcherCount: 8),
+      );
+
+      await tester.pumpAndSettle();
+
+      final coreButton = find.byKey(const Key('refresh-repository-detail'));
+
+      final issueButton = find.byKey(const Key('load-open-issues'));
+
+      final statistics = find.byKey(const Key('detail-section-statistics'));
+
+      final issues = find.byKey(const Key('detail-section-issues'));
+
+      final coreRect = tester.getRect(coreButton);
+      final issueRect = tester.getRect(issueButton);
+      final statisticsRect = tester.getRect(statistics);
+      final issuesRect = tester.getRect(issues);
+
+      // ボタンが最大幅いっぱいまで広がっていない。
+      expect(coreRect.width, lessThan(statisticsRect.width * 0.4));
+
+      expect(issueRect.width, lessThan(issuesRect.width * 0.4));
+
+      // 右端に配置されている。
+      expect(coreRect.right, closeTo(statisticsRect.right, 1));
+
+      expect(issueRect.right, closeTo(issuesRect.right, 1));
+
+      // レイアウト変更による追加通信はない。
+      expect(keys, hasLength(1));
+      expect(issueKeys, isEmpty);
+
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 class _IssueViaHttpGateway extends FakeGitHubRepositoryGateway {

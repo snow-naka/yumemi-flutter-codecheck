@@ -95,7 +95,10 @@ class RepositoryDetailScreen extends ConsumerWidget {
                         OutlinedButton(
                           key: const Key('retry-repository-detail'),
                           onPressed: () => ref.invalidate(provider),
-                          child: const Text('再試行'),
+                          child: const _AccessibleActionLabel(
+                            visibleLabel: '再試行',
+                            semanticLabel: 'リポジトリ詳細情報の取得を再試行',
+                          ),
                         ),
                       ],
                     ],
@@ -141,12 +144,11 @@ class _ResponsiveDetailRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 文字倍率が大きいほど、横並びに必要な幅を広げる。
         final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
 
         final minHorizontalWidth = 340.0 * textScale;
 
-        // 横幅が足りない場合は上下に並べる。
+        // 横幅が不足する場合は従来どおり縦並び。
         if (!constraints.hasBoundedWidth ||
             constraints.maxWidth < minHorizontalWidth) {
           return Column(
@@ -155,13 +157,18 @@ class _ResponsiveDetailRow extends StatelessWidget {
           );
         }
 
-        // 横幅が十分なら従来の左右配置。
+        // 横並びではボタンの幅を必要最小限にする。
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 2, child: info),
+            Expanded(child: info),
+
             const SizedBox(width: 12),
-            Expanded(flex: 3, child: action),
+
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.4),
+              child: action,
+            ),
           ],
         );
       },
@@ -208,6 +215,25 @@ typedef _DetailActionsBuilder = Widget Function(
   Widget coreButton,
   Widget issueControls,
 );
+
+class _AccessibleActionLabel extends StatelessWidget {
+  const _AccessibleActionLabel({
+    required this.visibleLabel,
+    required this.semanticLabel,
+  });
+
+  final String visibleLabel;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: Text(visibleLabel, textAlign: TextAlign.center),
+    );
+  }
+}
 
 class _RepositoryDetailActions extends ConsumerStatefulWidget {
   const _RepositoryDetailActions({
@@ -361,14 +387,22 @@ class _RepositoryDetailActionsState
         ? '再試行'
         : '取得';
 
+    final issueSemanticLabel = _count != null
+        ? 'Open Issue数を再取得'
+        : _error != null
+        ? 'Open Issue数の取得を再試行'
+        : 'Open Issue数を取得';
+
     // 統計情報セクションの右側
     final Widget coreButton = widget.requestKey != null
         ? SizedBox(
-            width: double.infinity,
             child: OutlinedButton(
               key: const Key('refresh-repository-detail'),
               onPressed: _loading ? null : _refreshDetail,
-              child: const Text('更新'),
+              child: const _AccessibleActionLabel(
+                visibleLabel: '更新',
+                semanticLabel: 'リポジトリ詳細情報を更新',
+              ),
             ),
           )
         : const SizedBox.shrink();
@@ -393,13 +427,15 @@ class _RepositoryDetailActionsState
         ],
       ),
       action: SizedBox(
-        width: double.infinity,
         child: OutlinedButton(
           key: const Key('load-open-issues'),
           onPressed: _loading || _routePopped || widget.requestKey == null
               ? null
               : _load,
-          child: Text(buttonLabel, textAlign: TextAlign.center),
+          child: _AccessibleActionLabel(
+            visibleLabel: buttonLabel,
+            semanticLabel: issueSemanticLabel,
+          ),
         ),
       ),
     );
