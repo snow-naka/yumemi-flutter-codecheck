@@ -1570,6 +1570,122 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  for (final size in [const Size(320, 800), const Size(800, 390)]) {
+    testWidgets('LR01: 英語・文字倍率2倍でも詳細画面を操作できる'
+        ' (${size.width}x${size.height})', (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      final container = await start(tester, locale: const Locale('en', 'US'));
+
+      final summary = (container.read(
+        searchControllerProvider,
+      ) as SearchResults).items.first;
+
+      await open(tester);
+
+      // 詳細取得中に画面サイズと文字倍率を変更。
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = size;
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+
+      await tester.pump();
+
+      expect(find.text('Loading repository details…'), findsOneWidget);
+
+      expect(tester.takeException(), isNull);
+
+      requests.single.complete(
+        RepositoryDetail(summary: summary, watcherCount: 12345),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Watchers: 12,345'), findsOneWidget);
+
+      final statistics = find.byKey(const Key('detail-section-statistics'));
+
+      final issues = find.byKey(const Key('detail-section-issues'));
+
+      void expectButtonLayout(Finder button, Finder section) {
+        final buttonRect = tester.getRect(button);
+        final sectionRect = tester.getRect(section);
+
+        if (size.width > size.height) {
+          // 横画面では右寄せ、最大幅40%。
+          expect(
+            buttonRect.width,
+            lessThanOrEqualTo(sectionRect.width * 0.4 + 1),
+          );
+
+          expect(buttonRect.right, closeTo(sectionRect.right, 1));
+        } else {
+          // 狭い縦画面では全幅表示。
+          expect(buttonRect.width, closeTo(sectionRect.width, 1));
+        }
+      }
+
+      // Core API更新ボタンの配置と操作領域。
+      await tester.ensureVisible(refreshButtonFinder);
+      await tester.pumpAndSettle();
+
+      expectButtonLayout(refreshButtonFinder, statistics);
+
+      expect(refreshButtonFinder.hitTestable(), findsOneWidget);
+
+      // Issue取得ボタンも操作可能。
+      await tester.ensureVisible(issueButtonFinder);
+      await tester.pumpAndSettle();
+
+      expectButtonLayout(issueButtonFinder, issues);
+
+      expect(issueButtonFinder.hitTestable(), findsOneWidget);
+
+      await tester.tap(issueButtonFinder);
+      await tester.pump();
+
+      issueRequests.single.complete(12345);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Open issues (excluding PRs): 12,345'), findsOneWidget);
+
+      // 長い「Fetch again」でもレイアウトを維持する。
+      await tester.ensureVisible(issueButtonFinder);
+      await tester.pumpAndSettle();
+
+      expectButtonLayout(issueButtonFinder, issues);
+
+      expectAccessibleButton(
+        tester,
+        issueButtonFinder,
+        visibleText: 'Fetch again',
+        semanticLabel: 'Fetch open issue count again',
+      );
+
+      expect(issueButtonFinder.hitTestable(), findsOneWidget);
+
+      // 画面下部のAPI利用上の注意書きまで読める。
+      final notice = find.byKey(const Key('open-issues-api-notice'));
+
+      await tester.ensureVisible(notice);
+      await tester.pumpAndSettle();
+
+      final viewport = tester.getRect(find.byType(SingleChildScrollView));
+
+      final noticeRect = tester.getRect(notice);
+
+      expect(noticeRect.top, greaterThanOrEqualTo(viewport.top - 1));
+
+      expect(noticeRect.bottom, lessThanOrEqualTo(viewport.bottom + 1));
+
+      // 表示条件の変更で不要な通信を行わない。
+      expect(keys, [summary.key]);
+      expect(issueKeys, [summary.key]);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 class _IssueViaHttpGateway extends FakeGitHubRepositoryGateway {

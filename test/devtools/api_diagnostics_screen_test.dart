@@ -323,4 +323,94 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  for (final locale in const [Locale('ja', 'JP'), Locale('en', 'US')]) {
+    for (final size in [const Size(320, 800), const Size(800, 390)]) {
+      testWidgets('LR02: 文字倍率2倍でも診断情報を確認できる'
+          ' (${locale.languageCode}, ${size.width}x${size.height})', (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.physicalSize = size;
+        tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+        final store = InMemoryApiDiagnostics();
+        addTearDown(store.dispose);
+
+        store.record(
+          ApiDiagnosticEvent(
+            recordedAt: DateTime.utc(2026, 11, 22, 12),
+            operation: ApiDiagnosticOperation.search,
+            outcome: ApiDiagnosticOutcome.blockedByRateLimit,
+          ),
+        );
+
+        final originalHistory = store.value;
+
+        await start(tester, store, locale: locale);
+
+        final japanese = locale.languageCode == 'ja';
+
+        final title = find.text(
+          japanese ? '検索 / 送信前に制限' : 'Search / Blocked before sending',
+        );
+
+        expect(title, findsOneWidget);
+        expect(title.hitTestable(), findsOneWidget);
+
+        // 診断情報を展開する。
+        await tester.tap(title);
+        await tester.pumpAndSettle();
+
+        expect(find.text(japanese ? '結果' : 'Result'), findsOneWidget);
+
+        expect(find.text('GitHub Reset'), findsOneWidget);
+        expect(find.text('Retry-After'), findsOneWidget);
+
+        // 比較的長い解除時刻不明のメッセージを確認。
+        final unknown = find.text(
+          japanese ? '解除時刻不明（送信停止中）' : 'Resume time unknown (requests paused)',
+        );
+
+        expect(unknown, findsOneWidget);
+
+        await tester.ensureVisible(unknown);
+        await tester.pumpAndSettle();
+
+        final viewport = tester.getRect(find.byType(ListView));
+
+        final messageRect = tester.getRect(unknown);
+
+        expect(messageRect.top, greaterThanOrEqualTo(viewport.top - 1));
+
+        expect(messageRect.bottom, lessThanOrEqualTo(viewport.bottom + 1));
+
+        // 表示・スクロールでは履歴を変更しない。
+        expect(store.value, same(originalHistory));
+
+        expect(tester.takeException(), isNull);
+
+        // 大きな文字倍率でも履歴消去ボタンを操作できる。
+        final clear = find.byKey(const Key('clear-api-diagnostics'));
+
+        expect(clear.hitTestable(), findsOneWidget);
+
+        await tester.tap(clear);
+        await tester.pumpAndSettle();
+
+        expect(store.value, isEmpty);
+
+        expect(
+          find.text(japanese ? '通信履歴はまだありません' : 'No request history yet.'),
+          findsOneWidget,
+        );
+
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 }
