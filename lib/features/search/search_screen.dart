@@ -416,7 +416,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             textInputAction: TextInputAction.search,
             onFieldSubmitted: (_) => _submit(),
             validator: (value) => value == null || value.trim().isEmpty
-                ? 'keywordRequired'
+                ? l10n.keywordRequired
                 : null,
             errorBuilder: (context, _) {
               final theme = Theme.of(context);

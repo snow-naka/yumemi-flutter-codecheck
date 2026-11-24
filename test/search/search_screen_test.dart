@@ -1549,4 +1549,52 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  for (final (locale, expectedMessage) in [
+    (const Locale('ja', 'JP'), '検索キーワードを入力してください。'),
+    (const Locale('en', 'US'), 'Please enter a search keyword.'),
+  ]) {
+    testWidgets('LS05: 空欄エラーを現在の言語で読み上げ通知する'
+        ' (${locale.languageCode})', (tester) async {
+      // 読み上げ通知に対応する環境を再現する。
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(supportsAnnounce: true);
+
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+
+      await startWithLayout(tester, locale: locale);
+
+      // 空白のみを入力する。
+      await tester.enterText(input, '  ');
+      await tester.pumpAndSettle();
+
+      // 検索操作前の通知は検証対象から除外する。
+      tester.takeAnnouncements();
+
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+
+      // 画面に翻訳済みのエラーを表示する。
+      expect(find.text(expectedMessage), findsOneWidget);
+
+      final messages = tester
+          .takeAnnouncements()
+          .map((announcement) => announcement.message)
+          .toList();
+
+      // 読み上げ通知にも翻訳済み文言を使用する。
+      expect(messages, contains(expectedMessage));
+
+      // 内部識別子を通知しない。
+      expect(messages, isNot(contains('keywordRequired')));
+
+      // 不正な入力によるAPI通信は発生しない。
+      expect(queries, isEmpty);
+      expect(layoutStore.writes, isEmpty);
+
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
