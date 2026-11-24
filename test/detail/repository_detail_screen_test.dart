@@ -1571,9 +1571,17 @@ void main() {
     });
   }
 
-  for (final size in [const Size(320, 800), const Size(800, 390)]) {
+  for (final (size, brightness) in const [
+    (Size(320, 800), Brightness.light),
+    (Size(800, 390), Brightness.light),
+    (Size(800, 390), Brightness.dark),
+  ]) {
     testWidgets('LR01: 英語・文字倍率2倍でも詳細画面を操作できる'
-        ' (${size.width}x${size.height})', (tester) async {
+        ' (${size.width}x${size.height}, ${brightness.name})', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = brightness;
+
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
@@ -1671,6 +1679,11 @@ void main() {
 
       await tester.ensureVisible(notice);
       await tester.pumpAndSettle();
+      expect(
+        Theme.of(tester.element(find.byType(RepositoryDetailScreen)))
+            .brightness,
+        brightness,
+      );
 
       final viewport = tester.getRect(find.byType(SingleChildScrollView));
 
@@ -1686,6 +1699,110 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('DM03: テーマ変更時も詳細・Issue取得状態を維持する', (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+
+    final container = await start(tester);
+
+    final summary =
+        (container.read(searchControllerProvider) as SearchResults).items.first;
+
+    await open(tester);
+
+    Brightness currentBrightness() =>
+        Theme.of(tester.element(find.byType(RepositoryDetailScreen)))
+            .brightness;
+
+    expect(currentBrightness(), Brightness.light);
+    expect(find.text('詳細情報を取得中…'), findsOneWidget);
+
+    // 詳細取得中にダークモードへ変更。
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(currentBrightness(), Brightness.dark);
+    expect(find.text('詳細情報を取得中…'), findsOneWidget);
+    expect(keys, [summary.key]);
+
+    requests.single.complete(
+      RepositoryDetail(summary: summary, watcherCount: 8),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Watcher数：8'), findsOneWidget);
+
+    // Issue数の取得を開始。
+    await tester.ensureVisible(issueButtonFinder);
+    await tester.tap(issueButtonFinder);
+    await tester.pump();
+
+    expect(find.text('Open Issue数（PR除外）：取得中…'), findsOneWidget);
+
+    // Issue取得中にライトモードへ変更。
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(currentBrightness(), Brightness.light);
+
+    expect(find.text('Open Issue数（PR除外）：取得中…'), findsOneWidget);
+
+    // テーマ変更で排他制御が解除されない。
+    expect(
+      tester.widget<OutlinedButton>(refreshButtonFinder).onPressed,
+      isNull,
+    );
+
+    expect(tester.widget<OutlinedButton>(issueButtonFinder).onPressed, isNull);
+
+    expect(keys, [summary.key]);
+    expect(issueKeys, [summary.key]);
+
+    issueRequests.single.complete(7);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+
+    final cache = container.read(openIssueCountCacheProvider);
+    final saved = cache.get(summary.key);
+
+    expect(saved, isNotNull);
+    expect(saved!.count, 7);
+
+    // 取得完了後に再びダークモードへ変更。
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+
+    await tester.pumpAndSettle();
+
+    expect(currentBrightness(), Brightness.dark);
+    expect(find.text('Watcher数：8'), findsOneWidget);
+
+    expect(find.text('Open Issue数（PR除外）：7'), findsOneWidget);
+
+    expect(find.textContaining('取得日時：'), findsOneWidget);
+
+    expectAccessibleButton(
+      tester,
+      issueButtonFinder,
+      visibleText: '再取得',
+      semanticLabel: 'Open Issue数を再取得',
+    );
+
+    // キャッシュの再生成や追加通信が発生しない。
+    expect(cache.get(summary.key), same(saved));
+    expect(searches, ['submitted']);
+    expect(keys, [summary.key]);
+    expect(issueKeys, [summary.key]);
+
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _IssueViaHttpGateway extends FakeGitHubRepositoryGateway {

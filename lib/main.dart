@@ -31,6 +31,15 @@ class MyApp extends StatelessWidget {
 
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
 
+      darkTheme: ThemeData(
+        colorScheme: .fromSeed(
+          seedColor: Colors.deepPurple,
+          brightness: Brightness.dark,
+        ),
+      ),
+
+      themeMode: ThemeMode.system,
+
       home: const SearchScreen(),
     );
   }
