@@ -147,6 +147,42 @@ Phase 3の最新コミットに対するGitHub ActionsのCI確認、物理端末
 ### Phase 3の最新環境対応（2026-11-24）
 - Flutter 3.50.1へ更新
 
+## CI・ビルド検証
+
+GitHub Actionsを使用して、以下の品質検証を自動化している。
+
+- Flutter 3.50.1 stableを使用
+- lockfileに従った依存関係の取得
+- 翻訳生成コードの差分検査
+- 静的解析
+- 全自動テストの実行
+- コードフォーマットの検査
+
+### Android Releaseビルド
+
+main向けのPRおよびmainへのPush時には、品質検証の成功後にAndroid Release APKを生成する。
+
+featureブランチへのPush時は品質検証のみを実行する。
+
+### 検証用APKの取得
+
+GitHub Actionsの成功したAndroidビルドの実行結果から、Artifactsに保存された以下のファイルをダウンロードできる。
+
+- app-release.apk
+- SHA256SUMS.txt
+
+Artifactの保存期間は14日間。
+
+APKは開発用のDebug署名鍵を使用した検証用成果物であり、正式なストア配布用ではない。署名鍵が異なる環境で生成したAPKは、既存アプリに上書きできない場合がある。
+
+### 検証実績
+
+2026-11-24に、featureブランチへのPush時の品質検証、PR作成時の品質検証およびAndroid Releaseビルドの成功を確認した。
+
+ArtifactのダウンロードとSHA-256の一致確認にも成功した。
+
+CIで生成したAPK自体の動作確認は未実施。
+
 ### 既知の制約
 
 - iOSの起動画面は背景色が白に固定されており、ダークモードでの起動時に白い背景が一時的に表示される可能性がある。iOS実機での確認は未実施であり、後続の改善候補とする。
