@@ -188,6 +188,12 @@ void main() {
     );
   }
 
+  AppLocalizations detailL10n(WidgetTester tester) {
+    return AppLocalizations.of(
+      tester.element(find.byType(RepositoryDetailScreen)),
+    );
+  }
+
   testWidgets('selected summary is shown while only its detail is pending', (
     tester,
   ) async {
@@ -608,7 +614,12 @@ void main() {
     addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [githubRepositoryGatewayProvider.overrideWithValue(gateway)],
+        overrides: [
+          githubRepositoryGatewayProvider.overrideWithValue(gateway),
+          issueCountFetchModeStoreProvider.overrideWithValue(
+            TestIssueCountFetchModeStore(mode: IssueCountFetchMode.manual),
+          ),
+        ],
         child: const MyApp(),
       ),
     );
@@ -632,13 +643,14 @@ void main() {
     expect(sentPaths, ['/search/repositories']);
 
     // 3. Issue検索を要求する。まだ送信はできない。
+    // 3. Issue検索を要求する。まだ送信はできない。
     await tester.tap(issueButtonFinder);
-    expect(
-      find.text('Issue数の取得中に問題が発生しました。', skipOffstage: false),
-      findsNothing,
-    );
     await tester.pump();
 
+    // Issue取得処理が開始されたことを確認する。
+    expect(find.text(detailL10n(tester).openIssuesLoading), findsOneWidget);
+
+    // キュー待ちのため、Issue検索はまだ送信されない。
     expect(sentPaths, ['/search/repositories']);
 
     // 4. 詳細画面から戻る。
@@ -1832,12 +1844,6 @@ void main() {
 
     await tester.pump();
     await tester.pump();
-  }
-
-  AppLocalizations detailL10n(WidgetTester tester) {
-    return AppLocalizations.of(
-      tester.element(find.byType(RepositoryDetailScreen)),
-    );
   }
 
   Future<ProviderContainer> openWithIssueCountForRefresh(
