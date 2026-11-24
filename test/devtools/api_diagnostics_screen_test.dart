@@ -205,7 +205,7 @@ void main() {
       }
 
       if (retryAt != null) {
-        expect(find.text('2026-11-22 12:05:00 (device time)'), findsOneWidget);
+        expect(find.text('11/22/2026 12:05:00 (device time)'), findsOneWidget);
       }
 
       expect(store.value, hasLength(1));
@@ -266,6 +266,60 @@ void main() {
     expect(find.text('結果'), findsOneWidget);
     expect(find.text('7 / 10'), findsOneWidget);
     expect(store.value, same(originalHistory));
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('LF02: 言語変更時に診断日時と数値を適切に表示する', (tester) async {
+    final store = InMemoryApiDiagnostics();
+    addTearDown(store.dispose);
+
+    final recordedAt = DateTime(2026, 11, 22, 12, 5, 9).toUtc();
+
+    store.record(
+      ApiDiagnosticEvent(
+        recordedAt: recordedAt,
+        operation: ApiDiagnosticOperation.search,
+        outcome: ApiDiagnosticOutcome.response,
+        httpStatus: 429,
+        rateLimitLimit: 12345,
+        rateLimitRemaining: 6789,
+        retryAfter: const Duration(seconds: 1234),
+      ),
+    );
+
+    final originalHistory = store.value;
+
+    await start(tester, store);
+
+    expect(find.text('記録：2026/11/22 12:05:09（端末時刻）'), findsOneWidget);
+
+    await tester.tap(find.text('検索 / HTTP 429'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('6,789 / 12,345'), findsOneWidget);
+    expect(find.text('1,234秒'), findsOneWidget);
+
+    // 英語へ変更。
+    tester.platformDispatcher.localesTestValue = [const Locale('en', 'US')];
+
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Recorded: 11/22/2026 12:05:09 (device time)'),
+      findsOneWidget,
+    );
+
+    expect(find.text('Search / HTTP 429'), findsOneWidget);
+    expect(find.text('6,789 / 12,345'), findsOneWidget);
+    expect(find.text('1,234 s'), findsOneWidget);
+    expect(find.text('1,234秒'), findsNothing);
+
+    // 記録済みのデータは変化しない。
+    expect(store.value, same(originalHistory));
+    expect(store.value.single.recordedAt, recordedAt);
+    expect(store.value.single.rateLimitRemaining, 6789);
+    expect(store.value.single.retryAfter, const Duration(seconds: 1234));
 
     expect(tester.takeException(), isNull);
   });

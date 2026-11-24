@@ -203,7 +203,8 @@
   "@diagnosticRetryAfterSeconds": {
     "placeholders": {
       "seconds": {
-        "type": "int"
+        "type": "int",
+        "format": "decimalPattern"
       }
     }
   },

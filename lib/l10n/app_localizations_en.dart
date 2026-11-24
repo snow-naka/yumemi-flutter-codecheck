@@ -324,7 +324,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String diagnosticRetryAfterSeconds(int seconds) {
-    return '$seconds s';
+    final intl.NumberFormat secondsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String secondsString = secondsNumberFormat.format(seconds);
+
+    return '$secondsString s';
   }
 
   @override

@@ -310,7 +310,11 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String diagnosticRetryAfterSeconds(int seconds) {
-    return '$seconds秒';
+    final intl.NumberFormat secondsNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String secondsString = secondsNumberFormat.format(seconds);
+
+    return '$secondsString秒';
   }
 
   @override

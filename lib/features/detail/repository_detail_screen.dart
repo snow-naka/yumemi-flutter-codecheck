@@ -7,6 +7,7 @@ import '../../models/api_failure.dart';
 import '../../models/repository_models.dart';
 import 'repository_detail_provider.dart';
 import '../../providers.dart';
+import '../../l10n/localized_date_time.dart';
 
 class RepositoryDetailScreen extends ConsumerWidget {
   const RepositoryDetailScreen({super.key, required this.summary});
@@ -449,7 +450,7 @@ class _RepositoryDetailActionsState
             const SizedBox(height: 4),
             Text(
               l10n.issueFetchedAt(
-                _fetchedAt!.toLocal().toString().substring(0, 16),
+                formatDeviceDateTime(_fetchedAt!, localeName: l10n.localeName),
               ),
               style: Theme.of(context).textTheme.bodySmall,
             ),

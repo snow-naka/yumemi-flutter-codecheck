@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../providers.dart';
 import 'api_diagnostics.dart';
+import '../l10n/localized_date_time.dart';
 
 class ApiDiagnosticsScreen extends ConsumerWidget {
   const ApiDiagnosticsScreen({super.key});
@@ -12,6 +13,10 @@ class ApiDiagnosticsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final formatDecimal = MaterialLocalizations.of(context).formatDecimal;
+
+    String formatNullableCount(int? value) =>
+        value == null ? '-' : formatDecimal(value);
 
     if (!kDebugMode) {
       return Scaffold(body: Center(child: Text(l10n.diagnosticDebugOnly)));
@@ -74,8 +79,8 @@ class ApiDiagnosticsScreen extends ConsumerWidget {
                           ),
                           _detailRow(
                             l10n.diagnosticRemainingLimit,
-                            '${event.rateLimitRemaining ?? "-"}'
-                            ' / ${event.rateLimitLimit ?? "-"}',
+                            '${formatNullableCount(event.rateLimitRemaining)}'
+                            ' / ${formatNullableCount(event.rateLimitLimit)}',
                           ),
                           _detailRow(
                             'GitHub Reset',
@@ -162,14 +167,12 @@ class ApiDiagnosticsScreen extends ConsumerWidget {
   static String _dateTime(AppLocalizations l10n, DateTime? value) {
     if (value == null) return l10n.diagnosticNotRecorded;
 
-    final local = value.toLocal();
-
-    String two(int n) => n.toString().padLeft(2, '0');
-
-    final formatted =
-        '${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
-
-    return l10n.diagnosticDeviceTime(formatted);
+    return l10n.diagnosticDeviceTime(
+      formatDeviceDateTime(
+        value,
+        localeName: l10n.localeName,
+        includeSeconds: true,
+      ),
+    );
   }
 }
