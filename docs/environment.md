@@ -171,11 +171,35 @@ sha256sum -c SHA256SUMS.txt
 
 Windows PowerShellでは `Get-FileHash .\app-release.apk -Algorithm SHA256` の値と `SHA256SUMS.txt` を比較する。これはファイルの一致確認であって、独立した署名による真正性の証明やアプリの安全性保証ではない。
 
-最終配布物は、配布対象のコミット、ビルドの成功、チェックサム、実際のインストール・操作結果を別途確認してから扱う。GitHub Releasesでの配布は最終工程の予定であり、本書整理時点で公開済みとは扱わない。
+2026-11-25に、PR #17のマージ後のmain（`d37212963bc2b7638506d89abc52725fceb46cd2`）から生成されたCIのAPKを取得し、チェックサム、署名、権限、対象OS、対応ABIを確認した。
+
+Android SDKのBuild Tools 36.0.0を使用した検査手順は次のとおり。
+
+```bash
+APK="/path/to/app-release.apk"
+SDK="$HOME/Android/Sdk"
+
+"$SDK/build-tools/36.0.0/apksigner" \
+  verify --verbose --print-certs "$APK"
+
+"$SDK/build-tools/36.0.0/aapt" dump badging "$APK"
+
+"$SDK/build-tools/36.0.0/aapt" dump permissions "$APK"
+```
+
+`APK` と `SDK` は実際のファイル・SDKの配置先に合わせて指定する。
+
+ローカルでインストールしていたアプリとCI生成APKの署名証明書が異なっていたため、開発者の判断で既存アプリをアンインストールし、CI生成APKを新規インストールした。
+
+検証時には `flutter run` による再ビルド・再インストールを行わず、CI生成APKそのものを使用した。
+
+APKのSHA-256、署名証明書、ビルド情報、検証結果の詳細は [README](../README.md) に記載する。
+
+以降の文書・スクリーンショットのみの変更は、検証済みAPKの生成元コミットとは区別して管理する。
 
 ## 5. 検証実績と適用範囲
 
-以下は開発中の実行結果と最終総合レビューによる確認結果である。現在の文書整理で新たに実行した結果ではない。
+以下は開発中の実行結果、最終総合レビューによる確認結果、および2026-11-25に実施したCI生成APKの最終検証結果である。各検証の実施時点と適用範囲を区別する。
 
 | 検証 | 確認結果・範囲 |
 | --- | --- |
@@ -185,10 +209,13 @@ Windows PowerShellでは `Get-FileHash .\app-release.apk -Algorithm SHA256` の�
 | SDK更新 | 3.50.1への更新後、全307テスト・解析・Releaseビルド・上書きインストール成功（11月24日） |
 | 外観改善後 | `flutter analyze` 問題なし、全350テスト成功、Android Release APK生成成功（52.8MB） |
 | CI | 開発中のPush / PRでの品質検証、Androidビルド、ArtifactダウンロードとSHA-256一致確認を報告済み |
+| 最終CI生成APK | mainの `d372129` に対応するArtifactを取得し、SHA-256照合、署名検証、権限・対象OS・対応ABIの確認に成功 |
+| 最終Android動作確認 | CI生成APKの新規インストールに成功。実APIによる検索・詳細取得、ライト・ダークテーマ、横画面表示を確認 |
+| ライセンス通知の抽出 | 最終CI生成APKからFlutterのNOTICES.ZとAndroidXのLICENSEファイル4件を抽出し、THIRD_PARTY_NOTICES.txtを作成 |
 | 最終総合レビュー | `8fd463c` を対象にソース・設定・履歴・既存APKを調査。独立したDart解析、67ファイルの整形検査、一部のDart動作検証9項目に成功 |
 | 独立したFlutter再実行 | 最終レビュー環境ではWSLプロセス起動が `Wsl/E_ACCESSDENIED` となり、全350件のFlutterテスト、エミュレーター操作、Releaseビルドの再実行は未実施 |
 
-最終配布対象コミットのmainのCI・CI生成APKそのもののインストールと動作は、最終配布前に別途確認する。過去のCI成功・ローカルAPKの動作と混同しない。
+2026-11-25の最終APK検証は、開発者がダウンロードしたCI生成APKそのものを対象として行った。過去のローカルAPKによる動作確認や、独立レビューによる検証とは区別する。
 
 未検証・対象外として区別する事項：
 
@@ -196,7 +223,7 @@ Windows PowerShellでは `Get-FileHash .\app-release.apk -Algorithm SHA256` の�
 - 物理Android端末、対象OSすべて、TalkBack / VoiceOverでの全画面操作は未検証。
 - WindowsネイティブのFlutter開発経路は、Dart起動拒否の詳細な原因が未特定のため、検証済みとしない。
 - Web・デスクトップ用の構成・動作は今回の検証対象外。
-- Android Release APKにはFlutterの `NOTICES.Z` と一部AndroidX等のLICENSEファイルが存在することを確認済み。ただし、その存在確認だけで全依存関係の再配布条件を満たしたとは判断しない。
+- 最終CI生成APKに含まれるFlutterおよびAndroidXのライセンス通知は抽出済み。ただし、全依存関係の再配布条件について個別の充足確認は完了していない。
 
 ---
 
