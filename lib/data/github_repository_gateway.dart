@@ -15,7 +15,7 @@ abstract interface class GitHubRepositoryGateway {
   });
 
   Future<RepositoryDetail> getRepository(RepositoryKey key);
-  // 利用者が明示的に要求したときだけ呼び出す。
+  // PRを除いたOpen Issue数を取得する。自動取得・手動取得で共用する。
   Future<int> getOpenIssueCount(
     RepositoryKey key, {
     bool Function()? isCanceled,

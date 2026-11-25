@@ -76,8 +76,7 @@ class SearchController extends Notifier<SearchState> {
         return;
       }
 
-      // 暫定判定。
-      // PageNavigationが実装されたら置き換える。
+      // ページ遷移情報に基づいて追加読み込み状態を決定する。
       final LoadMoreState loadMore = switch (page.navigation) {
         NextPage() => const LoadMoreAvailable(),
         PageEnd(:final reason) => LoadMoreEnd(reason),
