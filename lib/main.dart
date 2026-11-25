@@ -7,7 +7,7 @@ import 'l10n/app_localizations.dart';
 void main() {
   runApp(
     ProviderScope(
-      // Issue #3では暫定無効。実通信の再試行方針はPhase 2で再検討する。
+      // Providerの自動再試行を無効にし、取得失敗後は明示的な再試行を行う。
       retry: (retryCount, error) => null,
       child: const MyApp(),
     ),

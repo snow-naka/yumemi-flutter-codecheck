@@ -1,5 +1,7 @@
 # 段階2：データ型とFake Gateway
 
+> **履歴資料（2026-11-25整理）**：2026年11月18日のIssue #3・段階2におけるデータ型・Fake Gatewayの実装と検証の履歴資料です。 本文の仕様・未実装・未検証・今後の作業・Gitの状態などは当時の記録であり、現在の状態を示すものではありません。現行の機能・利用方法は[README](../README.md)、現行の技術設計は[architecture.md](architecture.md)を参照してください。
+
 2026-11-18、Issue #3。本書は段階2時点の取得窓口とFakeの検証記録。後続の検索画面・Controller・状態は[段階3の記録](search-skeleton.md)を参照する。詳細Providerは未実装。
 
 ## 構成と責務

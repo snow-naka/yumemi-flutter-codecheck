@@ -11,7 +11,7 @@ final unexpectedErrorReporterProvider = Provider<UnexpectedErrorReporter>(
   (ref) => const DeveloperLogUnexpectedErrorReporter(),
 );
 
-// 比較試作用の診断出力
+// Debug専用の診断出力。例外本文やスタックトレースは出力しない。
 final class DeveloperLogUnexpectedErrorReporter
     implements UnexpectedErrorReporter {
   const DeveloperLogUnexpectedErrorReporter();

@@ -44,7 +44,7 @@ class GitHubRateLimitPolicy {
     return latest;
   }
 
-  // 暫定実装 制限情報を再確認して安全に解除する手順は、HTTP Gatewayへ組み込む前に設計
+  // 期限不明の停止または未経過の停止期限があれば送信を許可しない。
   bool canRequest(GitHubApiResource resource, DateTime now) {
     if (_sharedUnknownDeadline ||
         _unknownDeadlineResources.contains(resource)) {
