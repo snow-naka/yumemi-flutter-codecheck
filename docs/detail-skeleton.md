@@ -1,5 +1,7 @@
 # 段階4：詳細画面と画面遷移
 
+> **履歴資料（2026-11-25整理）**：2026年11月18日のIssue #3・段階4における詳細スケルトンの実装と検証の履歴資料です。 本文の仕様・未実装・未検証・今後の作業・Gitの状態などは当時の記録であり、現在の状態を示すものではありません。現行の機能・利用方法は[README](../README.md)、現行の技術設計は[architecture.md](architecture.md)を参照してください。個人環境のパスは一般化しています。
+
 2026-11-18、Issue #3。段階2のGateway・Fakeと段階3の検索を利用し、検索結果の選択から詳細表示、手動再試行、一覧へ戻る操作を実装した。レビュー後に最終検証を行い、段階4の実装・テスト・関連資料を一つの目的でコミットする。実通信・CI・依存関係変更・Push・PR作成は対象外。
 
 ## 部品と状態の流れ
@@ -44,7 +46,7 @@ Navigator.pushで検索画面を残すため、TextEditingControllerの入力、
 
 FakeのdetailHandlerをCompleterで制御し、実時間の待機や外部通信を使わず、取得中・成功・失敗・破棄後の完了を確認する。通常のFakeシナリオによる検索→詳細失敗→手動再試行→戻る操作も確認する。
 
-WSLの既存Flutter 3.50.0 / Dart 3.14.0で実行した。SDKの起動は`/home/snow_/develop/flutter/bin/flutter --no-version-check`を使用し、依存取得は`--no-pub`で行わない。
+WSLの既存Flutter 3.50.0 / Dart 3.14.0で実行した。SDKの起動は`$HOME/develop/flutter/bin/flutter --no-version-check`を使用し、依存取得は`--no-pub`で行わない。
 
 | コマンド | 結果 |
 | --- | --- |
@@ -69,13 +71,13 @@ Widgetテストでは、検索結果からの選択・取得中の概要表示�
 - 作業ブランチ：`feature/3-skeleton`。基準コミット：`98c9a0d47d3e48d58f1bc4bcd382dd470bb75fb7`（段階3）。この基準に段階4の変更を加えた作業ツリーを検証し、本記録と同じコミットに収める。
 - 対象：`lib/`・`test/`配下の全Dartファイル20件と、`pubspec.yaml`・`pubspec.lock`・`analysis_options.yaml`の計23件。段階4のコード変更は詳細Provider・詳細画面・検索画面と詳細テスト2件。
 - 対象の照合方法：相対パス順に並べた各ファイルの`SHA-256  相対パス`を1行ずつ記したUTF-8・LFのマニフェストを作成。マニフェスト自体のSHA-256は`ad8fe81229f65b8a2104530c5f40a9db3c7a4d0de918508ccee1a6c8473063ba`。
-- 環境：既存のWSL用SDK。PATHは`/home/snow_/develop/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`。依存取得・依存設定変更は行っていない。
+- 環境：既存のWSL用SDK。PATHは`$HOME/develop/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`。依存取得・依存設定変更は行っていない。
 
 | 実行コマンド | 結果 | 終了コード | ローカルログ名 |
 | --- | --- | --- | --- |
-| `/home/snow_/develop/flutter/bin/flutter --no-version-check test --no-pub --reporter expanded` | 既存35件＋詳細12件、全47件成功 | 0 | `test-results.log` |
-| `/home/snow_/develop/flutter/bin/flutter --no-version-check analyze --no-pub` | No issues found | 0 | `analyze-results.log` |
-| `/home/snow_/develop/flutter/bin/cache/dart-sdk/bin/dart format --output=none --set-exit-if-changed lib test` | 20ファイル確認、変更必要なし（0 changed） | 0 | `format-results.log` |
+| `$HOME/develop/flutter/bin/flutter --no-version-check test --no-pub --reporter expanded` | 既存35件＋詳細12件、全47件成功 | 0 | `test-results.log` |
+| `$HOME/develop/flutter/bin/flutter --no-version-check analyze --no-pub` | No issues found | 0 | `analyze-results.log` |
+| `$HOME/develop/flutter/bin/cache/dart-sdk/bin/dart format --output=none --set-exit-if-changed lib test` | 20ファイル確認、変更必要なし（0 changed） | 0 | `format-results.log` |
 
 詳細ログのローカル保存先：`log/issue3/step4/20261118-190738+0900-final/`。同フォルダの`code-sha256.txt`に対象23件のハッシュ、`verification.json`にコマンド・開始終了時刻・終了コード・ログハッシュ・対象コードの一致確認を記録した。コミット確定後は、そのIDとコミット内の対象コードとの照合結果も同JSONへ記録する。
 

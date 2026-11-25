@@ -1,5 +1,7 @@
 # 段階5：CI整備・Android実操作・最終検証
 
+> **履歴資料（2026-11-25整理）**：2026年11月18日のIssue #3・段階5におけるスケルトンの最終検証・初期CIの履歴資料です。 本文の仕様・未実装・未検証・今後の作業・Gitの状態などは当時の記録であり、現在の状態を示すものではありません。現行の機能・利用方法は[README](../README.md)、現行の技術設計は[architecture.md](architecture.md)を参照してください。個人環境のパスは一般化しています。
+
 2026-11-18、Issue #3。対象は`feature/3-skeleton`、基準コミットは`686462ad16aad83e0ded05e306fd313cd7974aea`（段階4）。初回のローカル検証後、ユーザーの許可を受けて段階5をコミット・Pushし、Draft PR #4を作成した。GitHub Actionsの結果は末尾に追記する。mainへのマージ・Issueの更新は行っていない。
 
 ## 対象コードとログ
@@ -14,19 +16,19 @@
 
 ## Androidでの実操作
 
-既存のWSL Flutter 3.50.0 / Dart 3.14.0、Android SDK `/home/snow_/Android/Sdk`を利用した。[環境構築時の手順](environment.md)を引き継ぎ、Windowsの既存AVD `Medium_Phone_API_37.0`を起動し、WSLのADBで`emulator-5554`、API 37 / x86_64、起動完了`1`を確認した。SDK追加・ライセンスへの追加同意・Windowsセキュリティ設定変更は行っていない。
+既存のWSL Flutter 3.50.0 / Dart 3.14.0、Android SDK `$HOME/Android/Sdk`を利用した。[環境構築時の手順](environment.md)を引き継ぎ、Windowsの既存AVD `Medium_Phone_API_37.0`を起動し、WSLのADBで`emulator-5554`、API 37 / x86_64、起動完了`1`を確認した。SDK追加・ライセンスへの追加同意・Windowsセキュリティ設定変更は行っていない。
 
 WSLから以下のDebug APKビルドに成功した（18.6秒）。SDKの自動追加は無効にし、依存取得は行わない。
 
 ```bash
-env PATH=/home/snow_/develop/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-  ANDROID_HOME=/home/snow_/Android/Sdk \
+env PATH=$HOME/develop/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  ANDROID_HOME=$HOME/Android/Sdk \
   'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' \
-  /home/snow_/develop/flutter/bin/flutter --no-version-check build apk \
+  $HOME/develop/flutter/bin/flutter --no-version-check build apk \
     --debug --no-pub --target-platform android-x64
 
-/home/snow_/Android/Sdk/platform-tools/adb -s emulator-5554 install -r build/app/outputs/flutter-apk/app-debug.apk
-/home/snow_/Android/Sdk/platform-tools/adb -s emulator-5554 shell am start -W -n com.example.yumemi_app/.MainActivity
+$HOME/Android/Sdk/platform-tools/adb -s emulator-5554 install -r build/app/outputs/flutter-apk/app-debug.apk
+$HOME/Android/Sdk/platform-tools/adb -s emulator-5554 shell am start -W -n com.example.yumemi_app/.MainActivity
 ```
 
 インストールは`Success`、起動は`Status: ok`。アプリへの入力・選択・戻る操作はWSLのADB経由で実行し、実画面のスクリーンショットとuiautomatorのXMLを保存した。FlutterのWidgetテストだけによる確認とは分ける。今回はAPKを介した起動で、`flutter run`の接続・Hot Reloadの再検証は行っていない。
@@ -72,7 +74,7 @@ WSLの制限付き実行ではADBの待受開始が拒否されたため、許�
 
 ## ローカル最終検証
 
-2026-11-18 19:29:55〜19:30:04 JST、上記と同じコードで実行した。PATHはビルド例と同じWSL SDK指定。次の表の`flutter`は`/home/snow_/develop/flutter/bin/flutter --no-version-check`、`dart`は`/home/snow_/develop/flutter/bin/cache/dart-sdk/bin/dart`を表す。完全なコマンドと開始終了時刻は`local-verification.json`に保存した。
+2026-11-18 19:29:55〜19:30:04 JST、上記と同じコードで実行した。PATHはビルド例と同じWSL SDK指定。次の表の`flutter`は`$HOME/develop/flutter/bin/flutter --no-version-check`、`dart`は`$HOME/develop/flutter/bin/cache/dart-sdk/bin/dart`を表す。完全なコマンドと開始終了時刻は`local-verification.json`に保存した。
 
 | コマンド | 結果 | 終了コード | ローカルログ |
 | --- | --- | --- | --- |
